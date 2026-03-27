@@ -295,15 +295,18 @@ def handle_group_reply(group_id, sender, sender_name, text):
                 od["blocked_providers"].append(sender_clean)
 
                 send_message(cp,
+                    f"ابشر به\n\n"
                     f"تم قبول طلبك رقم {oid}\n"
                     f"المدينة: {od['city']}\n"
                     f"الخدمة: {od['name']}\n\n"
                     f"مقدم الخدمة: {sender_name}\n"
-                    f"للتواصل: {sender_clean}\n\n"
-                    f"كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
-                    f"1 - ممتاز تم الاتفاق\n"
-                    f"2 - لم يتم الاتفاق (إعادة الطلب)\n"
-                    f"3 - تواصل مع الإدارة"
+                    f"للتواصل: {sender_clean}"
+                )
+                send_message(cp,
+                    "كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
+                    "1 - ممتاز تم الاتفاق\n"
+                    "2 - لم يتم الاتفاق (إعادة الطلب)\n"
+                    "3 - تواصل مع الإدارة"
                 )
                 user_sessions[cp] = {"step": "provider_sent", "order_id": oid}
                 break
