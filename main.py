@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from flask import Flask, request, jsonify
 
@@ -35,6 +36,19 @@ GROUP_IDS = {
 user_sessions = {}
 order_counter = [1000]
 pending_orders = {}
+# { phone: { until: timestamp } }
+blocked_users = {}
+
+
+def is_blocked(phone):
+    if phone in blocked_users:
+        until = blocked_users[phone]["until"]
+        remaining = int((until - time.time()) / 60)
+        if time.time() < until:
+            return True, remaining
+        else:
+            del blocked_users[phone]
+    return False, 0
 
 
 def send_message(to, text):
@@ -55,10 +69,22 @@ def send_group_message(group_id, text):
 
 
 def handle_customer_message(phone, message_text):
+    # التحقق من الحظر المؤقت
+    blocked, remaining = is_blocked(phone)
+    if blocked:
+        send_message(phone,
+            f"عزيزي العميل\n"
+            f"حسابك موقوف مؤقتاً\n"
+            f"المتبقي: {remaining} دقيقة\n"
+            f"يرجى المحاولة لاحقاً"
+        )
+        return
+
     session = user_sessions.get(phone, {"step": "start"})
     step = session.get("step", "start")
     msg = message_text.strip()
 
+    # الخطوة 1: ترحيب
     if step == "start":
         send_message(phone,
             "السلام عليكم ورحمة الله\n\n"
@@ -71,6 +97,7 @@ def handle_customer_message(phone, message_text):
         )
         user_sessions[phone] = {"step": "choose_city"}
 
+    # الخطوة 2: اختيار المدينة
     elif step == "choose_city":
         cities = {"1": "حائل", "2": "الرياض", "3": "مكة"}
         if msg in cities:
@@ -89,6 +116,7 @@ def handle_customer_message(phone, message_text):
         else:
             send_message(phone, "الرجاء ارسال رقم صحيح (1 او 2 او 3)")
 
+    # الخطوة 3: اختيار الخدمة
     elif step == "choose_service":
         services = {"1": "هندسية", "2": "عقارية", "3": "طلابية", "4": "عامة", "5": "أخرى"}
         names = {"هندسية": "الهندسية", "عقارية": "العقارية", "طلابية": "الطلابية", "عامة": "العامة", "أخرى": "اخرى"}
@@ -97,7 +125,15 @@ def handle_customer_message(phone, message_text):
             city = session.get("city")
             order_counter[0] += 1
             oid = f"AB-{order_counter[0]}"
-            pending_orders[oid] = {"phone": phone, "city": city, "service": sk, "name": names[sk]}
+            pending_orders[oid] = {
+                "phone": phone,
+                "city": city,
+                "service": sk,
+                "name": names[sk],
+                "attempts": 1,
+                "blocked_providers": [],
+                "last_price": None
+            }
             user_sessions[phone] = {"step": "waiting", "order_id": oid}
             send_message(phone,
                 f"تم استلام طلبك بنجاح\n"
@@ -112,37 +148,164 @@ def handle_customer_message(phone, message_text):
                     f"رقم الطلب: {oid}\n"
                     f"المدينة: {city}\n"
                     f"الخدمة: {names[sk]}\n"
-                    f"من يرغب يرد بكلمة: تم"
+                    f"من يرغب بتنفيذ الطلب يرد بـ: 1"
                 )
         else:
             send_message(phone, "الرجاء ارسال رقم من 1 الى 5")
 
+    # الخطوة 4: انتظار بعد إرسال مقدم الخدمة
+    elif step == "provider_sent":
+        oid = session.get("order_id")
+        if msg == "1":
+            # ممتاز - تم الاتفاق
+            send_message(phone, "ممتاز! نتمنى لك تجربة رائعة مع شركة ابشر به")
+            if oid in pending_orders:
+                del pending_orders[oid]
+            user_sessions[phone] = {"step": "start"}
+
+        elif msg == "2":
+            # إعادة الطلب
+            if oid in pending_orders:
+                attempts = pending_orders[oid].get("attempts", 1)
+                if attempts >= 3:
+                    # إيقاف 15 دقيقة
+                    blocked_users[phone] = {"until": time.time() + 15 * 60}
+                    send_message(phone,
+                        "عزيزي العميل\n"
+                        "تم استنفاد المحاولات الثلاث\n"
+                        "سيتم إيقاف طلباتك لمدة 15 دقيقة\n"
+                        "يمكنك المحاولة مجدداً بعد قليل"
+                    )
+                    del pending_orders[oid]
+                    user_sessions[phone] = {"step": "start"}
+                else:
+                    user_sessions[phone] = {"step": "reason_return", "order_id": oid}
+                    send_message(phone,
+                        "ما سبب عدم الاتفاق؟\n\n"
+                        "1 - السعر مرتفع\n"
+                        "2 - لم يتجاوب مقدم الخدمة\n"
+                        "3 - سبب آخر"
+                    )
+            else:
+                user_sessions[phone] = {"step": "start"}
+
+        elif msg == "3":
+            # تواصل مع الإدارة
+            send_message(phone,
+                "سيتم تحويلك للإدارة\n"
+                "للتواصل المباشر: 0554325282"
+            )
+            user_sessions[phone] = {"step": "start"}
+
+        else:
+            send_message(phone,
+                "كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
+                "1 - ممتاز تم الاتفاق\n"
+                "2 - لم يتم الاتفاق (إعادة الطلب)\n"
+                "3 - تواصل مع الإدارة"
+            )
+
+    # الخطوة 5: سبب الإعادة
+    elif step == "reason_return":
+        oid = session.get("order_id")
+        if msg == "1":
+            # السعر مرتفع
+            user_sessions[phone] = {"step": "enter_price", "order_id": oid}
+            send_message(phone, "كم السعر الذي عُرض عليك؟ (اكتب المبلغ بالريال)")
+
+        elif msg == "2":
+            # لم يتجاوب
+            if oid in pending_orders:
+                _resend_order(phone, oid, "لم يتجاوب مقدم الخدمة", None)
+        elif msg == "3":
+            # سبب آخر
+            user_sessions[phone] = {"step": "enter_reason", "order_id": oid}
+            send_message(phone, "اكتب سبب عدم الاتفاق")
+        else:
+            send_message(phone,
+                "الرجاء اختيار رقم صحيح:\n"
+                "1 - السعر مرتفع\n"
+                "2 - لم يتجاوب مقدم الخدمة\n"
+                "3 - سبب آخر"
+            )
+
+    # الخطوة 6: إدخال السعر
+    elif step == "enter_price":
+        oid = session.get("order_id")
+        _resend_order(phone, oid, "السعر مرتفع", msg)
+
+    # الخطوة 7: إدخال السبب
+    elif step == "enter_reason":
+        oid = session.get("order_id")
+        _resend_order(phone, oid, msg, None)
+
     elif step == "waiting":
         send_message(phone, "طلبك قيد المعالجة، سيتم التواصل معك قريبا")
 
-    elif step == "done":
-        user_sessions[phone] = {"step": "start"}
-        handle_customer_message(phone, msg)
+
+def _resend_order(phone, oid, reason, price):
+    if oid not in pending_orders:
+        return
+    od = pending_orders[oid]
+    od["attempts"] += 1
+    attempts = od["attempts"]
+    city = od["city"]
+    sk = od["service"]
+    if price:
+        od["last_price"] = price
+
+    gid = GROUP_IDS.get(city, {}).get(sk, "")
+    if gid:
+        price_line = f"آخر سعر مُقدَّم: {od['last_price']} ريال\n" if od.get("last_price") else ""
+        send_group_message(gid,
+            f"طلب معاد - المحاولة {attempts} من 3\n"
+            f"رقم الطلب: {oid}\n"
+            f"المدينة: {city}\n"
+            f"الخدمة: {od['name']}\n"
+            f"{price_line}"
+            f"سبب الإعادة: {reason}\n"
+            f"من يرغب يرد بـ: 1\n"
+            f"مقدمو الخدمة السابقون لا يحق لهم المشاركة"
+        )
+
+    attempt_warning = ""
+    if attempts == 3:
+        attempt_warning = "\nتنبيه: هذه آخر محاولة متاحة لك"
+
+    send_message(phone,
+        f"تم إعادة طلبك\n"
+        f"المحاولة {attempts} من 3\n"
+        f"سيتم التواصل معك قريبا{attempt_warning}"
+    )
+    user_sessions[phone] = {"step": "waiting", "order_id": oid}
 
 
 def handle_group_reply(group_id, sender, sender_name, text):
-    if text.strip() == "تم":
+    if text.strip() == "1":
         for oid, od in list(pending_orders.items()):
             gid = GROUP_IDS.get(od["city"], {}).get(od["service"], "")
             if gid and gid == group_id:
+                # التحقق أن مقدم الخدمة ليس محظوراً
+                sender_clean = sender.replace("@c.us", "")
+                if sender_clean in od.get("blocked_providers", []):
+                    send_message(sender_clean, "عذراً، لا يحق لك المشاركة في هذا الطلب")
+                    return
+
                 cp = od["phone"]
+                od["blocked_providers"].append(sender_clean)
+
                 send_message(cp,
-                    f"بشرى سارة!\n\n"
                     f"تم قبول طلبك رقم {oid}\n"
                     f"المدينة: {od['city']}\n"
                     f"الخدمة: {od['name']}\n\n"
                     f"مقدم الخدمة: {sender_name}\n"
-                    f"للتواصل: {sender.replace('@c.us','')}\n\n"
-                    f"نتمنى لك تجربة ممتازة مع شركة ابشر به"
+                    f"للتواصل: {sender_clean}\n\n"
+                    f"كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
+                    f"1 - ممتاز تم الاتفاق\n"
+                    f"2 - لم يتم الاتفاق (إعادة الطلب)\n"
+                    f"3 - تواصل مع الإدارة"
                 )
-                del pending_orders[oid]
-                if cp in user_sessions:
-                    user_sessions[cp]["step"] = "done"
+                user_sessions[cp] = {"step": "provider_sent", "order_id": oid}
                 break
 
 
