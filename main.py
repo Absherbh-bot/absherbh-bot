@@ -1,76 +1,74 @@
 import os
-import json
 import requests
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# ==========================================
-# 🔧 إعدادات Green API
-# ==========================================
 INSTANCE_ID = os.environ.get("INSTANCE_ID", "7107565478")
 API_TOKEN = os.environ.get("API_TOKEN", "YOUR_API_TOKEN")
 BASE_URL = f"https://{INSTANCE_ID}.api.greenapi.com/waInstance{INSTANCE_ID}"
 
-# أرقام القروبات — ستضيفها لاحقاً
 GROUP_IDS = {
-    "هندسية": "",
-    "عقارية": "",
-    "طلابية": "",
-    "عامة": "",
-    "أخرى": "",
+    "حائل": {
+        "هندسية": "120363426950772289@g.us",
+        "عقارية": "120363410799982407@g.us",
+        "طلابية": "120363407257036510@g.us",
+        "عامة":   "120363424571918251@g.us",
+        "أخرى":   "120363427416825883@g.us",
+    },
+    "الرياض": {
+        "هندسية": "120363408125014073@g.us",
+        "عقارية": "120363409693947081@g.us",
+        "طلابية": "",
+        "عامة":   "120363424742533865@g.us",
+        "أخرى":   "120363424843218984@g.us",
+    },
+    "مكة": {
+        "هندسية": "120363423810536259@g.us",
+        "عقارية": "120363408793324975@g.us",
+        "طلابية": "",
+        "عامة":   "",
+        "أخرى":   "120363406558277603@g.us",
+    },
 }
 
-# ==========================================
-# حالات المحادثة
-# ==========================================
 user_sessions = {}
 order_counter = [1000]
 pending_orders = {}
 
 
 def send_message(to, text):
-    """إرسال رسالة نصية"""
     url = f"{BASE_URL}/sendMessage/{API_TOKEN}"
-    data = {
-        "chatId": f"{to}@c.us" if "@" not in to else to,
-        "message": text
-    }
+    chat_id = f"{to}@c.us" if "@" not in to else to
     try:
-        requests.post(url, json=data, timeout=10)
+        requests.post(url, json={"chatId": chat_id, "message": text}, timeout=10)
     except Exception as e:
         print(f"Send error: {e}")
 
 
 def send_group_message(group_id, text):
-    """إرسال رسالة لقروب"""
     url = f"{BASE_URL}/sendMessage/{API_TOKEN}"
-    data = {
-        "chatId": group_id,
-        "message": text
-    }
     try:
-        requests.post(url, json=data, timeout=10)
+        requests.post(url, json={"chatId": group_id, "message": text}, timeout=10)
     except Exception as e:
-        print(f"Group send error: {e}")
+        print(f"Group error: {e}")
 
 
 def handle_customer_message(phone, message_text):
-    """معالجة رسائل العملاء"""
     session = user_sessions.get(phone, {"step": "start"})
     step = session.get("step", "start")
     msg = message_text.strip()
 
     if step == "start":
-        welcome = (
-            "🌟 أهلاً بك في شركة *أبشر به*!\n\n"
-            "نسعد بخدمتك، من فضلك اختر مدينتك:\n\n"
-            "1️⃣ حائل\n"
-            "2️⃣ الرياض\n"
-            "3️⃣ مكة\n\n"
-            "أرسل رقم المدينة (1 أو 2 أو 3)"
+        send_message(phone,
+            "السلام عليكم ورحمة الله\n\n"
+            "اهلا بك في شركة ابشر به\n\n"
+            "اختر مدينتك:\n"
+            "1 - حائل\n"
+            "2 - الرياض\n"
+            "3 - مكة\n\n"
+            "ارسل رقم المدينة"
         )
-        send_message(phone, welcome)
         user_sessions[phone] = {"step": "choose_city"}
 
     elif step == "choose_city":
@@ -78,147 +76,108 @@ def handle_customer_message(phone, message_text):
         if msg in cities:
             city = cities[msg]
             user_sessions[phone] = {"step": "choose_service", "city": city}
-            service_msg = (
-                f"📍 ممتاز! اخترت مدينة *{city}*\n\n"
-                "ما هي الخدمة المطلوبة؟\n\n"
-                "1️⃣ الخدمات الهندسية\n"
-                "2️⃣ الخدمات العقارية\n"
-                "3️⃣ الخدمات الطلابية\n"
-                "4️⃣ الخدمات العامة\n"
-                "5️⃣ أخرى\n\n"
-                "أرسل رقم الخدمة"
+            send_message(phone,
+                f"ممتاز! اخترت {city}\n\n"
+                "اختر الخدمة المطلوبة:\n"
+                "1 - الخدمات الهندسية\n"
+                "2 - الخدمات العقارية\n"
+                "3 - الخدمات الطلابية\n"
+                "4 - الخدمات العامة\n"
+                "5 - اخرى\n\n"
+                "ارسل رقم الخدمة"
             )
-            send_message(phone, service_msg)
         else:
-            send_message(phone, "⚠️ الرجاء إرسال رقم صحيح (1 أو 2 أو 3)")
+            send_message(phone, "الرجاء ارسال رقم صحيح (1 او 2 او 3)")
 
     elif step == "choose_service":
         services = {"1": "هندسية", "2": "عقارية", "3": "طلابية", "4": "عامة", "5": "أخرى"}
-        service_names = {
-            "هندسية": "الخدمات الهندسية",
-            "عقارية": "الخدمات العقارية",
-            "طلابية": "الخدمات الطلابية",
-            "عامة": "الخدمات العامة",
-            "أخرى": "أخرى"
-        }
+        names = {"هندسية": "الهندسية", "عقارية": "العقارية", "طلابية": "الطلابية", "عامة": "العامة", "أخرى": "اخرى"}
         if msg in services:
-            service_key = services[msg]
+            sk = services[msg]
             city = session.get("city")
             order_counter[0] += 1
-            order_id = f"AB-{order_counter[0]}"
-
-            pending_orders[order_id] = {
-                "phone": phone,
-                "city": city,
-                "service": service_key,
-                "service_name": service_names[service_key]
-            }
-            user_sessions[phone] = {"step": "waiting", "order_id": order_id}
-
-            confirm_msg = (
-                f"✅ عزيزي العميل\n\n"
-                f"تم استلام طلبك بنجاح!\n"
-                f"رقم طلبك: *{order_id}*\n\n"
-                f"سوف نقوم بإرسال رقم مقدم الخدمة لك قريباً.\n"
-                f"الرجاء الانتظار 🙏"
+            oid = f"AB-{order_counter[0]}"
+            pending_orders[oid] = {"phone": phone, "city": city, "service": sk, "name": names[sk]}
+            user_sessions[phone] = {"step": "waiting", "order_id": oid}
+            send_message(phone,
+                f"تم استلام طلبك بنجاح\n"
+                f"رقم الطلب: {oid}\n\n"
+                "سيتم ارسال رقم مقدم الخدمة قريبا\n"
+                "الرجاء الانتظار"
             )
-            send_message(phone, confirm_msg)
-
-            group_id = GROUP_IDS.get(service_key, "")
-            if group_id:
-                group_msg = (
-                    f"🔔 *طلب جديد*\n"
-                    f"━━━━━━━━━━━━━━\n"
-                    f"📋 رقم الطلب: *{order_id}*\n"
-                    f"📍 المدينة: *{city}*\n"
-                    f"🔧 الخدمة: *{service_names[service_key]}*\n"
-                    f"━━━━━━━━━━━━━━\n"
-                    f"من يرغب بتنفيذ الطلب يرد بـ *تم*"
+            gid = GROUP_IDS.get(city, {}).get(sk, "")
+            if gid:
+                send_group_message(gid,
+                    f"طلب جديد\n"
+                    f"رقم الطلب: {oid}\n"
+                    f"المدينة: {city}\n"
+                    f"الخدمة: {names[sk]}\n"
+                    f"من يرغب يرد بكلمة: تم"
                 )
-                send_group_message(group_id, group_msg)
         else:
-            send_message(phone, "⚠️ الرجاء إرسال رقم صحيح من 1 إلى 5")
+            send_message(phone, "الرجاء ارسال رقم من 1 الى 5")
 
     elif step == "waiting":
-        send_message(phone, "⏳ طلبك قيد المعالجة، سيتم التواصل معك قريباً. شكراً لصبرك 🙏")
+        send_message(phone, "طلبك قيد المعالجة، سيتم التواصل معك قريبا")
+
+    elif step == "done":
+        user_sessions[phone] = {"step": "start"}
+        handle_customer_message(phone, msg)
 
 
-def handle_group_reply(group_id, sender_phone, sender_name, message_text):
-    """معالجة ردود أعضاء القروب"""
-    if message_text.strip() == "تم":
-        for order_id, order_data in list(pending_orders.items()):
-            service_key = order_data.get("service")
-            expected_group = GROUP_IDS.get(service_key, "")
-            if expected_group and expected_group == group_id:
-                customer_phone = order_data["phone"]
-                city = order_data["city"]
-                service_name = order_data["service_name"]
-
-                notify_msg = (
-                    f"🎉 بشرى سارة!\n\n"
-                    f"تم قبول طلبك رقم *{order_id}*\n"
-                    f"📍 المدينة: {city}\n"
-                    f"🔧 الخدمة: {service_name}\n\n"
-                    f"مقدم الخدمة: *{sender_name}*\n"
-                    f"📞 للتواصل: {sender_phone}\n\n"
-                    f"نتمنى لك تجربة ممتازة مع شركة أبشر به 🌟"
+def handle_group_reply(group_id, sender, sender_name, text):
+    if text.strip() == "تم":
+        for oid, od in list(pending_orders.items()):
+            gid = GROUP_IDS.get(od["city"], {}).get(od["service"], "")
+            if gid and gid == group_id:
+                cp = od["phone"]
+                send_message(cp,
+                    f"بشرى سارة!\n\n"
+                    f"تم قبول طلبك رقم {oid}\n"
+                    f"المدينة: {od['city']}\n"
+                    f"الخدمة: {od['name']}\n\n"
+                    f"مقدم الخدمة: {sender_name}\n"
+                    f"للتواصل: {sender.replace('@c.us','')}\n\n"
+                    f"نتمنى لك تجربة ممتازة مع شركة ابشر به"
                 )
-                send_message(customer_phone, notify_msg)
-                del pending_orders[order_id]
-                if customer_phone in user_sessions:
-                    user_sessions[customer_phone]["step"] = "done"
+                del pending_orders[oid]
+                if cp in user_sessions:
+                    user_sessions[cp]["step"] = "done"
                 break
 
 
-# ==========================================
-# Webhook — استقبال الرسائل من Green API
-# ==========================================
-
 @app.route("/webhook", methods=["POST"])
 def receive_message():
-    """استقبال الرسائل"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({"status": "ok"}), 200
-
-        type_webhook = data.get("typeWebhook", "")
-
-        if type_webhook == "incomingMessageReceived":
-            sender_data = data.get("senderData", {})
-            message_data = data.get("messageData", {})
-
-            sender = sender_data.get("sender", "")
-            sender_name = sender_data.get("senderName", "مقدم الخدمة")
-            chat_id = sender_data.get("chatId", "")
-
-            msg_type = message_data.get("typeMessage", "")
-            if msg_type == "textMessage":
-                text = message_data.get("textMessageData", {}).get("textMessage", "")
-            elif msg_type == "extendedTextMessage":
-                text = message_data.get("extendedTextMessageData", {}).get("text", "")
+        if data.get("typeWebhook") == "incomingMessageReceived":
+            sd = data.get("senderData", {})
+            md = data.get("messageData", {})
+            sender = sd.get("sender", "")
+            sender_name = sd.get("senderName", "مقدم الخدمة")
+            chat_id = sd.get("chatId", "")
+            mt = md.get("typeMessage", "")
+            if mt == "textMessage":
+                text = md.get("textMessageData", {}).get("textMessage", "")
+            elif mt == "extendedTextMessage":
+                text = md.get("extendedTextMessageData", {}).get("text", "")
             else:
                 text = ""
-
-            if not text:
-                return jsonify({"status": "ok"}), 200
-
-            # تحديد إذا من قروب أو عميل
-            if "@g.us" in chat_id:
-                handle_group_reply(chat_id, sender.replace("@c.us", ""), sender_name, text)
-            else:
-                phone = sender.replace("@c.us", "")
-                handle_customer_message(phone, text)
-
+            if text:
+                if "@g.us" in chat_id:
+                    handle_group_reply(chat_id, sender, sender_name, text)
+                else:
+                    handle_customer_message(sender.replace("@c.us", ""), text)
     except Exception as e:
-        print(f"Webhook error: {e}")
-
+        print(f"Error: {e}")
     return jsonify({"status": "ok"}), 200
 
 
 @app.route("/", methods=["GET"])
 def home():
-    return "أبشر به - البوت شغّال! ✅", 200
+    return "ابشر به - البوت شغال!", 200
 
 
 if __name__ == "__main__":
