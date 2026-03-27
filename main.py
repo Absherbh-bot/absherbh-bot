@@ -6,68 +6,61 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 # ==========================================
-# 🔧 إعدادات — غيّر هذه القيم فقط
+# 🔧 إعدادات Green API
 # ==========================================
-VERIFY_TOKEN = "abshir_secret_2024"          # رمز سري تختاره أنت
-ACCESS_TOKEN = "YOUR_META_ACCESS_TOKEN"       # من لوحة Meta Developers
-PHONE_NUMBER_ID = "YOUR_PHONE_NUMBER_ID"      # من لوحة Meta Developers
+INSTANCE_ID = os.environ.get("INSTANCE_ID", "7107565478")
+API_TOKEN = os.environ.get("API_TOKEN", "YOUR_API_TOKEN")
+BASE_URL = f"https://{INSTANCE_ID}.api.greenapi.com/waInstance{INSTANCE_ID}"
 
-# أرقام المجموعات (Group IDs) — تحتاج تعبئها بعد ربط البوت
+# أرقام القروبات — ستضيفها لاحقاً
 GROUP_IDS = {
-    "هندسية": "GROUP_ID_ENGINEERING",
-    "عقارية": "GROUP_ID_REAL_ESTATE",
-    "طلابية": "GROUP_ID_STUDENTS",
-    "عامة":   "GROUP_ID_GENERAL",
-    "أخرى":   "GROUP_ID_OTHER",
+    "هندسية": "",
+    "عقارية": "",
+    "طلابية": "",
+    "عامة": "",
+    "أخرى": "",
 }
 
 # ==========================================
-# حالات المحادثة لكل مستخدم
+# حالات المحادثة
 # ==========================================
-user_sessions = {}  # { phone: { step, city, service, order_id } }
-order_counter = [1000]  # عداد أرقام الطلبات
-pending_orders = {}     # { "order_id": { phone, city, service } }
+user_sessions = {}
+order_counter = [1000]
+pending_orders = {}
 
 
 def send_message(to, text):
-    """إرسال رسالة نصية للعميل"""
-    url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
-    headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}",
-        "Content-Type": "application/json"
-    }
+    """إرسال رسالة نصية"""
+    url = f"{BASE_URL}/sendMessage/{API_TOKEN}"
     data = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "text",
-        "text": {"body": text}
+        "chatId": f"{to}@c.us" if "@" not in to else to,
+        "message": text
     }
-    requests.post(url, headers=headers, json=data)
+    try:
+        requests.post(url, json=data, timeout=10)
+    except Exception as e:
+        print(f"Send error: {e}")
 
 
 def send_group_message(group_id, text):
-    """إرسال رسالة لقروب معين"""
-    url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
-    headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}",
-        "Content-Type": "application/json"
-    }
+    """إرسال رسالة لقروب"""
+    url = f"{BASE_URL}/sendMessage/{API_TOKEN}"
     data = {
-        "messaging_product": "whatsapp",
-        "to": group_id,
-        "type": "text",
-        "text": {"body": text}
+        "chatId": group_id,
+        "message": text
     }
-    requests.post(url, headers=headers, json=data)
+    try:
+        requests.post(url, json=data, timeout=10)
+    except Exception as e:
+        print(f"Group send error: {e}")
 
 
 def handle_customer_message(phone, message_text):
-    """معالجة رسائل العملاء خطوة بخطوة"""
+    """معالجة رسائل العملاء"""
     session = user_sessions.get(phone, {"step": "start"})
     step = session.get("step", "start")
     msg = message_text.strip()
 
-    # ========== الخطوة 1: ترحيب واختيار المدينة ==========
     if step == "start":
         welcome = (
             "🌟 أهلاً بك في شركة *أبشر به*!\n\n"
@@ -80,7 +73,6 @@ def handle_customer_message(phone, message_text):
         send_message(phone, welcome)
         user_sessions[phone] = {"step": "choose_city"}
 
-    # ========== الخطوة 2: اختيار المدينة ==========
     elif step == "choose_city":
         cities = {"1": "حائل", "2": "الرياض", "3": "مكة"}
         if msg in cities:
@@ -100,31 +92,21 @@ def handle_customer_message(phone, message_text):
         else:
             send_message(phone, "⚠️ الرجاء إرسال رقم صحيح (1 أو 2 أو 3)")
 
-    # ========== الخطوة 3: اختيار الخدمة ==========
     elif step == "choose_service":
-        services = {
-            "1": "هندسية",
-            "2": "عقارية",
-            "3": "طلابية",
-            "4": "عامة",
-            "5": "أخرى"
-        }
+        services = {"1": "هندسية", "2": "عقارية", "3": "طلابية", "4": "عامة", "5": "أخرى"}
         service_names = {
             "هندسية": "الخدمات الهندسية",
             "عقارية": "الخدمات العقارية",
             "طلابية": "الخدمات الطلابية",
-            "عامة":   "الخدمات العامة",
-            "أخرى":   "أخرى"
+            "عامة": "الخدمات العامة",
+            "أخرى": "أخرى"
         }
         if msg in services:
             service_key = services[msg]
             city = session.get("city")
-
-            # توليد رقم طلب
             order_counter[0] += 1
             order_id = f"AB-{order_counter[0]}"
 
-            # حفظ الطلب
             pending_orders[order_id] = {
                 "phone": phone,
                 "city": city,
@@ -133,7 +115,6 @@ def handle_customer_message(phone, message_text):
             }
             user_sessions[phone] = {"step": "waiting", "order_id": order_id}
 
-            # إشعار العميل
             confirm_msg = (
                 f"✅ عزيزي العميل\n\n"
                 f"تم استلام طلبك بنجاح!\n"
@@ -143,9 +124,8 @@ def handle_customer_message(phone, message_text):
             )
             send_message(phone, confirm_msg)
 
-            # إرسال الطلب للقروب المختص
-            group_id = GROUP_IDS.get(service_key)
-            if group_id and not group_id.startswith("GROUP_ID"):
+            group_id = GROUP_IDS.get(service_key, "")
+            if group_id:
                 group_msg = (
                     f"🔔 *طلب جديد*\n"
                     f"━━━━━━━━━━━━━━\n"
@@ -159,27 +139,21 @@ def handle_customer_message(phone, message_text):
         else:
             send_message(phone, "⚠️ الرجاء إرسال رقم صحيح من 1 إلى 5")
 
-    # ========== في حالة الانتظار ==========
     elif step == "waiting":
         send_message(phone, "⏳ طلبك قيد المعالجة، سيتم التواصل معك قريباً. شكراً لصبرك 🙏")
 
 
 def handle_group_reply(group_id, sender_phone, sender_name, message_text):
     """معالجة ردود أعضاء القروب"""
-    msg = message_text.strip().lower()
-
-    if msg == "تم":
-        # البحث عن طلب معلق في هذا القروب
+    if message_text.strip() == "تم":
         for order_id, order_data in list(pending_orders.items()):
             service_key = order_data.get("service")
-            expected_group = GROUP_IDS.get(service_key)
-
-            if expected_group == group_id:
+            expected_group = GROUP_IDS.get(service_key, "")
+            if expected_group and expected_group == group_id:
                 customer_phone = order_data["phone"]
                 city = order_data["city"]
                 service_name = order_data["service_name"]
 
-                # إشعار العميل ببيانات مقدم الخدمة
                 notify_msg = (
                     f"🎉 بشرى سارة!\n\n"
                     f"تم قبول طلبك رقم *{order_id}*\n"
@@ -190,69 +164,61 @@ def handle_group_reply(group_id, sender_phone, sender_name, message_text):
                     f"نتمنى لك تجربة ممتازة مع شركة أبشر به 🌟"
                 )
                 send_message(customer_phone, notify_msg)
-
-                # حذف الطلب من القائمة المعلقة
                 del pending_orders[order_id]
-
-                # تحديث حالة العميل
                 if customer_phone in user_sessions:
                     user_sessions[customer_phone]["step"] = "done"
                 break
 
 
 # ==========================================
-# Webhook — نقطة الاتصال مع Meta
+# Webhook — استقبال الرسائل من Green API
 # ==========================================
-
-@app.route("/webhook", methods=["GET"])
-def verify_webhook():
-    """التحقق من الـ Webhook عند الإعداد"""
-    mode = request.args.get("hub.mode")
-    token = request.args.get("hub.verify_token")
-    challenge = request.args.get("hub.challenge")
-
-    if mode == "subscribe" and token == VERIFY_TOKEN:
-        return challenge, 200
-    return "Forbidden", 403
-
 
 @app.route("/webhook", methods=["POST"])
 def receive_message():
-    """استقبال الرسائل من واتس آب"""
-    data = request.get_json()
-
+    """استقبال الرسائل"""
     try:
-        entry = data["entry"][0]
-        changes = entry["changes"][0]
-        value = changes["value"]
+        data = request.get_json()
+        if not data:
+            return jsonify({"status": "ok"}), 200
 
-        messages = value.get("messages", [])
-        contacts = value.get("contacts", [])
+        type_webhook = data.get("typeWebhook", "")
 
-        for message in messages:
-            sender_phone = message["from"]
-            msg_type = message.get("type")
+        if type_webhook == "incomingMessageReceived":
+            sender_data = data.get("senderData", {})
+            message_data = data.get("messageData", {})
 
-            if msg_type == "text":
-                msg_text = message["text"]["body"]
+            sender = sender_data.get("sender", "")
+            sender_name = sender_data.get("senderName", "مقدم الخدمة")
+            chat_id = sender_data.get("chatId", "")
 
-                # تحديد ما إذا كان المرسل من قروب أو عميل فردي
-                # القروبات تبدأ بـ @g.us في الـ group_id
-                metadata = value.get("metadata", {})
-                phone_number_id = metadata.get("phone_number_id")
+            msg_type = message_data.get("typeMessage", "")
+            if msg_type == "textMessage":
+                text = message_data.get("textMessageData", {}).get("textMessage", "")
+            elif msg_type == "extendedTextMessage":
+                text = message_data.get("extendedTextMessageData", {}).get("text", "")
+            else:
+                text = ""
 
-                # إذا كانت الرسالة من قروب
-                if "g.us" in sender_phone:
-                    sender_name = contacts[0]["profile"]["name"] if contacts else "مقدم الخدمة"
-                    handle_group_reply(sender_phone, sender_phone, sender_name, msg_text)
-                else:
-                    # رسالة من عميل
-                    handle_customer_message(sender_phone, msg_text)
+            if not text:
+                return jsonify({"status": "ok"}), 200
+
+            # تحديد إذا من قروب أو عميل
+            if "@g.us" in chat_id:
+                handle_group_reply(chat_id, sender.replace("@c.us", ""), sender_name, text)
+            else:
+                phone = sender.replace("@c.us", "")
+                handle_customer_message(phone, text)
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Webhook error: {e}")
 
     return jsonify({"status": "ok"}), 200
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return "أبشر به - البوت شغّال! ✅", 200
 
 
 if __name__ == "__main__":
