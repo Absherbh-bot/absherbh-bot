@@ -87,7 +87,7 @@ def handle_customer_message(phone, message_text):
     # الخطوة 1: ترحيب
     if step == "start":
         send_message(phone,
-            "السلام عليكم ورحمة الله\n\n"
+            " السلام عليكم ورحمة الله\n\n"
             "اهلا بك في شركة ابشر به\n\n"
             "اختر مدينتك:\n"
             "1 - حائل\n"
