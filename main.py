@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 INSTANCE_ID = os.environ.get("INSTANCE_ID", "7107565478")
 API_TOKEN = os.environ.get("API_TOKEN", "YOUR_API_TOKEN")
-BASE_URL = f"https://{INSTANCE_ID}.api.greenapi.com/waInstance{INSTANCE_ID}"
+BASE_URL = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
 
 GROUP_IDS = {
     "حائل": {
