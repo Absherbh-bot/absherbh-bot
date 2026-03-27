@@ -87,8 +87,8 @@ def handle_customer_message(phone, message_text):
     # الخطوة 1: ترحيب
     if step == "start":
         send_message(phone,
-            " السلام عليكم ورحمة الله\n\n"
-            "اهلا بك في شركة ابشر به\n\n"
+            ""
+            "اهلا بك في ابشر به\n\n"
             "اختر مدينتك:\n"
             "1 - حائل\n"
             "2 - الرياض\n"
@@ -158,7 +158,7 @@ def handle_customer_message(phone, message_text):
         oid = session.get("order_id")
         if msg == "1":
             # ممتاز - تم الاتفاق
-            send_message(phone, "ممتاز! نتمنى لك تجربة رائعة مع شركة ابشر به")
+            send_message(phone, "ممتاز! نتمنى لك تجربة رائعة مع ابشر به")
             if oid in pending_orders:
                 del pending_orders[oid]
             user_sessions[phone] = {"step": "start"}
