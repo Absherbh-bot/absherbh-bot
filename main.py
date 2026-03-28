@@ -280,36 +280,40 @@ def _resend_order(phone, oid, reason, price):
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
 
 
-def handle_group_reply(group_id, sender, sender_name, text):
-    if text.strip() == "1":
-        for oid, od in list(pending_orders.items()):
-            gid = GROUP_IDS.get(od["city"], {}).get(od["service"], "")
-            if gid and gid == group_id:
-                # التحقق أن مقدم الخدمة ليس محظوراً
-                sender_clean = sender.replace("@c.us", "")
-                if sender_clean in od.get("blocked_providers", []):
-                    send_message(sender_clean, "عذراً، لا يحق لك المشاركة في هذا الطلب")
-                    return
+def handle_group_reply(group_id, sender, sender_name, reaction=None):
+    for oid, od in list(pending_orders.items()):
+        gid = GROUP_IDS.get(od["city"], {}).get(od["service"], "")
+        if gid and gid == group_id:
+            sender_clean = sender.replace("@c.us", "")
 
-                cp = od["phone"]
-                od["blocked_providers"].append(sender_clean)
+            # التحقق أن مقدم الخدمة ليس محظوراً
+            if sender_clean in od.get("blocked_providers", []):
+                return
 
-                send_message(cp,
-                    f"ابشر به\n\n"
-                    f"تم قبول طلبك رقم {oid}\n"
-                    f"المدينة: {od['city']}\n"
-                    f"الخدمة: {od['name']}\n\n"
-                    f"مقدم الخدمة: {sender_name}\n"
-                    f"للتواصل: {sender_clean}"
-                )
-                send_message(cp,
-                    "كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
-                    "1 - ممتاز تم الاتفاق\n"
-                    "2 - لم يتم الاتفاق (إعادة الطلب)\n"
-                    "3 - تواصل مع الإدارة"
-                )
-                user_sessions[cp] = {"step": "provider_sent", "order_id": oid}
-                break
+            # التحقق أن الطلب لم يُؤخذ بعد
+            if od.get("taken"):
+                return
+
+            cp = od["phone"]
+            od["blocked_providers"].append(sender_clean)
+            od["taken"] = True
+
+            send_message(cp,
+                f"ابشر به\n\n"
+                f"تم قبول طلبك رقم {oid}\n"
+                f"المدينة: {od['city']}\n"
+                f"الخدمة: {od['name']}\n\n"
+                f"مقدم الخدمة: {sender_name}\n"
+                f"للتواصل: {sender_clean}"
+            )
+            send_message(cp,
+                "كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
+                "1 - ممتاز تم الاتفاق\n"
+                "2 - لم يتم الاتفاق (إعادة الطلب)\n"
+                "3 - تواصل مع الإدارة"
+            )
+            user_sessions[cp] = {"step": "provider_sent", "order_id": oid}
+            break
 
 
 @app.route("/webhook", methods=["POST"])
@@ -325,6 +329,13 @@ def receive_message():
             sender_name = sd.get("senderName", "مقدم الخدمة")
             chat_id = sd.get("chatId", "")
             mt = md.get("typeMessage", "")
+
+            # التفاعلات (reactions) من القروب
+            if mt == "reactionMessage":
+                if "@g.us" in chat_id:
+                    handle_group_reply(chat_id, sender, sender_name, reaction=True)
+                return jsonify({"status": "ok"}), 200
+
             if mt == "textMessage":
                 text = md.get("textMessageData", {}).get("textMessage", "")
             elif mt == "extendedTextMessage":
@@ -333,7 +344,7 @@ def receive_message():
                 text = ""
             if text:
                 if "@g.us" in chat_id:
-                    handle_group_reply(chat_id, sender, sender_name, text)
+                    pass  # القروب مقفول للرسائل النصية
                 else:
                     handle_customer_message(sender.replace("@c.us", ""), text)
     except Exception as e:
