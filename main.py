@@ -148,7 +148,14 @@ def handle_customer_message(phone, message_text):
                     f"رقم الطلب: {oid}\n"
                     f"المدينة: {city}\n"
                     f"الخدمة: {names[sk]}\n"
-                    f"من يرغب بتنفيذ الطلب يرد بـ: 1"
+                    f"━━━━━━━━━━━━━━\n"
+                    f"لاستلام الطلب تفاعل مع الرسالة\n"
+                    f"اضغط مطولاً على الرسالة واختر أي تفاعل\n\n"
+                    f"To accept, react to this message\n"
+                    f"Press and hold the message, then select any reaction\n\n"
+                    f"آرڈر لینے کے لیے میسج پر ری ایکشن دیں\n"
+                    f"میسج کو دیر تک دبائیں اور کوئی بھی ری ایکشن منتخب کریں\n"
+                    f"━━━━━━━━━━━━━━"
                 )
         else:
             send_message(phone, "الرجاء ارسال رقم من 1 الى 5")
