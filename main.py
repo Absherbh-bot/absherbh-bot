@@ -194,6 +194,7 @@ pending_orders = {}
 blocked_users = {}
 order_counter = [1000]
 provider_cooldown = {}
+checked_phones = set()  # أرقام تم فحصها مسبقاً (cache)
 
 
 # ==========================================
@@ -281,6 +282,11 @@ def fetch_group_members():
 
 
 def is_in_any_group(phone):
+    # cache: لا نفحص نفس الرقم مرتين
+    if phone in checked_phones:
+        return phone in registered_providers
+    checked_phones.add(phone)
+
     url = f"{BASE_URL}/getGroupData/{API_TOKEN}"
     for city, groups in GROUP_IDS.items():
         for service, gid in groups.items():
@@ -453,6 +459,11 @@ def handle_provider(phone, msg):
     session = provider_sessions.get(phone, {})
     step = session.get("step", "")
 
+    if not step:
+        provider_sessions[phone] = {"step": "terms"}
+        provider_terms(phone)
+        return
+
     if step == "terms":
         if msg == "1":
             provider_sessions[phone] = {"step": "name"}
@@ -575,11 +586,20 @@ def create_order(phone, city, service):
 # ==========================================
 def resend_order(phone, oid, reason, price=None):
     if oid not in pending_orders:
+        user_sessions[phone] = {"step": "start"}
         return
     od = pending_orders[oid]
     od["attempts"] += 1
     od["taken"] = False
     attempts = od["attempts"]
+
+    # تحقق من الحد الأقصى للمحاولات
+    if attempts > 3:
+        blocked_users[phone] = time.time() + 15 * 60
+        send_msg(phone, "تم استنفاد المحاولات\nحسابك موقوف 15 دقيقة")
+        del pending_orders[oid]
+        user_sessions[phone] = {"step": "start"}
+        return
     if price:
         od["last_price"] = price
 
@@ -650,11 +670,12 @@ def handle_customer(phone, msg):
 
         elif msg in SERVICES:
             service = SERVICES[msg]
-            if phone not in registered_clients:
+            # مقدمو الخدمة المسجلون لا يحتاجون لشروط العميل
+            if phone in registered_providers or phone in registered_clients:
+                create_order(phone, city, service)
+            else:
                 user_sessions[phone] = {"step": "terms", "city": city, "service": service}
                 client_terms(phone)
-            else:
-                create_order(phone, city, service)
         else:
             send_msg(phone, "الرجاء ارسال رقم من 1 الى 13")
 
@@ -719,6 +740,11 @@ def handle_customer(phone, msg):
     elif step == "provider_sent":
         oid = session.get("order_id")
         od = pending_orders.get(oid, {})
+
+        if not oid:
+            user_sessions[phone] = {"step": "start"}
+            menu_city(phone)
+            return
 
         if msg == "1":
             # ✅ حفظ التقييم الإيجابي في Supabase
@@ -890,10 +916,16 @@ def handle_reaction(group_id, sender, sender_name):
     sender_clean = sender.replace("@c.us", "")
 
     if sender_clean not in registered_providers:
-        if sender_clean not in provider_sessions:
-            provider_sessions[sender_clean] = {"step": "terms"}
-            provider_terms(sender_clean)
-        return
+        # تحقق أولاً إذا كان موجوداً في أي قروب
+        if is_in_any_group(sender_clean):
+            # موجود في القروب = مسجل مسبقاً، يكمل بشكل طبيعي
+            pass
+        else:
+            # جديد = أرسل له الشروط
+            if sender_clean not in provider_sessions:
+                provider_sessions[sender_clean] = {"step": "terms"}
+                provider_terms(sender_clean)
+            return
 
     if sender_clean in provider_cooldown:
         until = provider_cooldown[sender_clean]
@@ -1001,16 +1033,18 @@ def webhook():
             return jsonify({"status": "ok"}), 200
 
         if phone in provider_sessions:
+            # في منتصف تسجيل كمقدم خدمة
             handle_provider(phone, text)
-        elif phone in registered_providers:
+        elif phone in registered_providers or phone in registered_clients:
+            # مسجل سابقاً (عميل أو مقدم خدمة)
             handle_customer(phone, text)
-        elif phone in registered_clients:
+        elif phone in checked_phones:
+            # تم فحصه مسبقاً وليس في القروبات
             handle_customer(phone, text)
         else:
-            if is_in_any_group(phone):
-                handle_customer(phone, text)
-            else:
-                handle_customer(phone, text)
+            # جديد — فحص القروبات مرة واحدة فقط
+            is_in_any_group(phone)
+            handle_customer(phone, text)
 
     except Exception as e:
         print(f"Webhook error: {e}")
