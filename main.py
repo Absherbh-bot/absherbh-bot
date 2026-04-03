@@ -16,101 +16,6 @@ ADMIN_PHONE = "966554325282"
 BANK_ACCOUNT = "SA2880000595608016106214"
 
 # ==========================================
-# إعدادات Supabase (REST API مباشرة - بدون مكتبة)
-# ==========================================
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
-
-def sb_headers():
-    return {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
-    }
-
-def sb_get(table, filters=None):
-    try:
-        url = f"{SUPABASE_URL}/rest/v1/{table}"
-        r = requests.get(url, headers=sb_headers(), params=filters or {}, timeout=10)
-        return r.json() if r.status_code == 200 else []
-    except Exception as e:
-        print(f"sb_get error: {e}")
-        return []
-
-def sb_insert(table, data):
-    try:
-        url = f"{SUPABASE_URL}/rest/v1/{table}"
-        r = requests.post(url, headers=sb_headers(), json=data, timeout=10)
-        return r.json() if r.status_code in [200, 201] else None
-    except Exception as e:
-        print(f"sb_insert error: {e}")
-        return None
-
-def sb_update(table, data, filters):
-    try:
-        url = f"{SUPABASE_URL}/rest/v1/{table}"
-        r = requests.patch(url, headers=sb_headers(), json=data, params=filters, timeout=10)
-        return r.status_code in [200, 204]
-    except Exception as e:
-        print(f"sb_update error: {e}")
-        return False
-
-
-# ==========================================
-# دوال قاعدة البيانات
-# ==========================================
-def db_get_customer(phone):
-    rows = sb_get("customers", {"phone": f"eq.{phone}"})
-    return rows[0] if rows else None
-
-def db_save_customer(phone, city=None):
-    existing = db_get_customer(phone)
-    if not existing:
-        sb_insert("customers", {"phone": phone, "city": city})
-    elif city and not existing.get("city"):
-        sb_update("customers", {"city": city}, {"phone": f"eq.{phone}"})
-
-def db_get_provider(phone):
-    rows = sb_get("providers", {"phone": f"eq.{phone}"})
-    return rows[0] if rows else None
-
-def db_save_provider(phone, name, city, category):
-    existing = db_get_provider(phone)
-    if existing:
-        sb_update("providers", {"name": name, "city": city, "category": category, "is_active": True}, {"phone": f"eq.{phone}"})
-    else:
-        sb_insert("providers", {"phone": phone, "name": name, "city": city, "category": category})
-
-def db_create_order(order_code, customer_phone, city, category):
-    sb_insert("orders", {
-        "order_code": order_code,
-        "customer_phone": customer_phone,
-        "city": city,
-        "category": category,
-        "status": "pending"
-    })
-
-def db_update_order(order_code, provider_phone=None, status=None):
-    data = {}
-    if provider_phone:
-        data["provider_phone"] = provider_phone
-    if status:
-        data["status"] = status
-    if data:
-        sb_update("orders", data, {"order_code": f"eq.{order_code}"})
-
-def db_save_review(order_code, customer_phone, rating, comment=None, is_complaint=False):
-    sb_insert("reviews", {
-        "order_code": order_code,
-        "customer_phone": customer_phone,
-        "rating": rating,
-        "comment": comment,
-        "is_complaint": is_complaint
-    })
-
-
-# ==========================================
 # القروبات
 # ==========================================
 GROUP_IDS = {
@@ -186,73 +91,17 @@ pending_orders = {}
 blocked_users = {}
 order_counter = [1000]
 provider_cooldown = {}
+checked_phones = set()  # cache للأرقام المفحوصة
 
 
 # ==========================================
-# تحميل البيانات من Supabase عند البدء
+# التحقق من عضوية القروب (مع cache)
 # ==========================================
-def load_from_db():
-    global registered_clients, registered_providers, order_counter
-    try:
-        customers = sb_get("customers", {"select": "phone"})
-        for c in customers:
-            registered_clients.add(c["phone"])
-        print(f"✅ تم تحميل {len(registered_clients)} عميل من Supabase")
-
-        providers = sb_get("providers", {"is_active": "eq.true"})
-        for p in providers:
-            registered_providers[p["phone"]] = {
-                "name": p.get("name", "مقدم خدمة"),
-                "city": p.get("city", ""),
-                "specialty": p.get("category", ""),
-                "status": "active",
-            }
-        print(f"✅ تم تحميل {len(registered_providers)} مزود خدمة من Supabase")
-
-        orders = sb_get("orders", {"select": "order_code"})
-        if orders:
-            nums = []
-            for o in orders:
-                try:
-                    nums.append(int(o["order_code"].replace("AB-", "")))
-                except:
-                    pass
-            if nums:
-                order_counter[0] = max(nums)
-        print(f"✅ آخر رقم طلب: AB-{order_counter[0]}")
-
-    except Exception as e:
-        print(f"load_from_db error: {e}")
-
-
-# ==========================================
-# جلب أعضاء القروبات
-# ==========================================
-def fetch_group_members():
-    url = f"{BASE_URL}/getGroupData/{API_TOKEN}"
-    for city, groups in GROUP_IDS.items():
-        for service, gid in groups.items():
-            try:
-                r = requests.post(url, json={"groupId": gid}, timeout=10)
-                data = r.json()
-                participants = data.get("participants", [])
-                for p in participants:
-                    phone = p.get("id", "").replace("@c.us", "")
-                    if phone and phone != ADMIN_PHONE:
-                        if phone not in registered_providers:
-                            registered_providers[phone] = {
-                                "name": "مقدم خدمة",
-                                "city": city,
-                                "specialty": service,
-                                "status": "active",
-                            }
-                            db_save_provider(phone, "مقدم خدمة", city, service)
-                            print(f"✅ تم تسجيل {phone} من قروب {service} - {city}")
-            except Exception as e:
-                print(f"خطأ في جلب أعضاء {service} - {city}: {e}")
-
-
 def is_in_any_group(phone):
+    if phone in checked_phones:
+        return phone in registered_providers
+    checked_phones.add(phone)
+
     url = f"{BASE_URL}/getGroupData/{API_TOKEN}"
     for city, groups in GROUP_IDS.items():
         for service, gid in groups.items():
@@ -270,7 +119,6 @@ def is_in_any_group(phone):
                                 "specialty": service,
                                 "status": "active",
                             }
-                            db_save_provider(phone, "مقدم خدمة", city, service)
                         return True
             except Exception as e:
                 print(f"خطأ: {e}")
@@ -419,11 +267,16 @@ def provider_terms(phone):
 
 
 # ==========================================
-# سيناريو تسجيل مقدم الخدمة
+# تسجيل مقدم الخدمة
 # ==========================================
 def handle_provider(phone, msg):
     session = provider_sessions.get(phone, {})
     step = session.get("step", "")
+
+    if not step:
+        provider_sessions[phone] = {"step": "terms"}
+        provider_terms(phone)
+        return
 
     if step == "terms":
         if msg == "1":
@@ -479,9 +332,7 @@ def handle_provider(phone, msg):
             "specialty": specialty,
             "status": "active",
         }
-
-        # ✅ حفظ في Supabase
-        db_save_provider(phone, name, city, specialty)
+        checked_phones.add(phone)
 
         gid = GROUP_IDS.get(city, {}).get(specialty, "")
         if gid:
@@ -514,9 +365,6 @@ def create_order(phone, city, service):
     }
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
 
-    # ✅ حفظ في Supabase
-    db_create_order(oid, phone, city, service)
-
     send_msg(phone,
         f"تم استلام طلبك ✅\n"
         f"رقم الطلب: {oid}\n\n"
@@ -546,6 +394,7 @@ def create_order(phone, city, service):
 # ==========================================
 def resend_order(phone, oid, reason, price=None):
     if oid not in pending_orders:
+        user_sessions[phone] = {"step": "start"}
         return
     od = pending_orders[oid]
     od["attempts"] += 1
@@ -554,7 +403,12 @@ def resend_order(phone, oid, reason, price=None):
     if price:
         od["last_price"] = price
 
-    db_update_order(oid, status="retrying")
+    if attempts > 3:
+        blocked_users[phone] = time.time() + 15 * 60
+        send_msg(phone, "تم استنفاد المحاولات\nحسابك موقوف 15 دقيقة")
+        del pending_orders[oid]
+        user_sessions[phone] = {"step": "start"}
+        return
 
     gid = GROUP_IDS.get(od["city"], {}).get(od["service"], "")
     if gid:
@@ -618,11 +472,11 @@ def handle_customer(phone, msg):
             menu_admin(phone)
         elif msg in SERVICES:
             service = SERVICES[msg]
-            if phone not in registered_clients:
+            if phone in registered_providers or phone in registered_clients:
+                create_order(phone, city, service)
+            else:
                 user_sessions[phone] = {"step": "terms", "city": city, "service": service}
                 client_terms(phone)
-            else:
-                create_order(phone, city, service)
         else:
             send_msg(phone, "الرجاء ارسال رقم من 1 الى 13")
 
@@ -631,8 +485,6 @@ def handle_customer(phone, msg):
         service = session.get("service")
         if msg == "1":
             registered_clients.add(phone)
-            # ✅ حفظ العميل في Supabase
-            db_save_customer(phone, city)
             create_order(phone, city, service)
         elif msg == "2":
             send_msg(phone, "شكراً لك\nنتمنى خدمتك في وقت آخر 🌟")
@@ -670,9 +522,6 @@ def handle_customer(phone, msg):
                 f"رقم العميل: {phone}\n"
                 f"الشكوى: {msg}"
             )
-        # ✅ حفظ الشكوى في Supabase
-        oid = user_sessions.get(phone, {}).get("order_id", "N/A")
-        db_save_review(oid, phone, rating=1, comment=msg, is_complaint=True)
         send_msg(phone, "تم استلام شكواك ✅\nسيتم التواصل معك قريباً")
         user_sessions[phone] = {"step": "start"}
 
@@ -681,11 +530,13 @@ def handle_customer(phone, msg):
 
     elif step == "provider_sent":
         oid = session.get("order_id")
+        if not oid:
+            user_sessions[phone] = {"step": "start"}
+            menu_city(phone)
+            return
         od = pending_orders.get(oid, {})
 
         if msg == "1":
-            db_update_order(oid, status="completed")
-            db_save_review(oid, phone, rating=5, comment="تم الاتفاق")
             send_msg(phone, "ممتاز! نتمنى لك تجربة رائعة مع مذكرة سلمان 🌟")
             if oid in pending_orders:
                 del pending_orders[oid]
@@ -695,7 +546,6 @@ def handle_customer(phone, msg):
             attempts = od.get("attempts", 1)
             if attempts >= 3:
                 blocked_users[phone] = time.time() + 15 * 60
-                db_update_order(oid, status="failed")
                 send_msg(phone,
                     "تم استنفاد المحاولات الثلاث\n"
                     "حسابك موقوف 15 دقيقة"
@@ -729,8 +579,6 @@ def handle_customer(phone, msg):
                     f"━━━━━━━━━━━━━━\n"
                     f"يرجى التواصل مع العميل فوراً"
                 )
-            db_save_review(oid, phone, rating=1, is_complaint=True)
-            db_update_order(oid, status="complaint")
             user_sessions[phone] = {"step": "start"}
         else:
             send_msg(phone,
@@ -751,7 +599,11 @@ def handle_customer(phone, msg):
             user_sessions[phone] = {"step": "custom_reason", "order_id": oid}
             send_msg(phone, "اكتب سبب عدم الاتفاق:")
         else:
-            send_msg(phone, "1 - السعر مرتفع\n2 - لم يتجاوب\n3 - سبب آخر")
+            send_msg(phone,
+                "1 - السعر مرتفع\n"
+                "2 - لم يتجاوب\n"
+                "3 - سبب آخر"
+            )
 
     elif step == "price":
         oid = session.get("order_id")
@@ -763,7 +615,7 @@ def handle_customer(phone, msg):
 
 
 # ==========================================
-# سيناريو قروب التحكم
+# قروب التحكم
 # ==========================================
 def handle_control(sender, text, group_id):
     if sender.replace("@c.us", "") != ADMIN_PHONE:
@@ -821,8 +673,8 @@ def handle_control(sender, text, group_id):
             send_group(reply, "الرجاء ارسال رقم من 1 الى 14")
 
     elif step == "write":
-        name = session.get("name")
-        gid  = session.get("gid")
+        name  = session.get("name")
+        gid   = session.get("gid")
         reply = session.get("reply", group_id)
 
         if gid == "all":
@@ -841,31 +693,36 @@ def handle_control(sender, text, group_id):
 
 
 # ==========================================
-# سيناريو القروب (تفاعل)
+# تفاعل القروب
 # ==========================================
 def handle_reaction(group_id, sender, sender_name):
     sender_clean = sender.replace("@c.us", "")
 
+    # تحقق إذا كان مسجلاً
     if sender_clean not in registered_providers:
-        if sender_clean not in provider_sessions:
-            provider_sessions[sender_clean] = {"step": "terms"}
-            provider_terms(sender_clean)
-        return
+        if is_in_any_group(sender_clean):
+            pass  # موجود في قروب = مسجل، يكمل
+        else:
+            if sender_clean not in provider_sessions:
+                provider_sessions[sender_clean] = {"step": "terms"}
+                provider_terms(sender_clean)
+            return
 
+    # فحص cooldown
     if sender_clean in provider_cooldown:
         until = provider_cooldown[sender_clean]
         if time.time() < until:
-            remaining = int((until - time.time()) / 60)
-            remaining_sec = int((until - time.time()) % 60)
+            remaining_m = int((until - time.time()) / 60)
+            remaining_s = int((until - time.time()) % 60)
             send_msg(sender_clean,
-                f"عزيزي مقدم الخدمة\n\n"
                 f"يمكنك استقبال الطلب القادم بعد:\n"
-                f"{remaining} دقيقة و{remaining_sec} ثانية ⏱️"
+                f"{remaining_m} دقيقة و{remaining_s} ثانية ⏱️"
             )
             return
         else:
             del provider_cooldown[sender_clean]
 
+    # البحث عن الطلب
     for oid, od in list(pending_orders.items()):
         gid = GROUP_IDS.get(od["city"], {}).get(od["service"], "")
         if gid != group_id:
@@ -879,9 +736,6 @@ def handle_reaction(group_id, sender, sender_name):
         od["blocked_providers"].append(sender_clean)
         od["taken"] = True
         provider_cooldown[sender_clean] = time.time() + 10 * 60
-
-        # ✅ تحديث الطلب في Supabase
-        db_update_order(oid, provider_phone=sender_clean, status="accepted")
 
         send_msg(cp,
             f"ابشر به\n\n"
@@ -907,7 +761,7 @@ def handle_reaction(group_id, sender, sender_name):
 
 
 # ==========================================
-# Webhook الرئيسي
+# Webhook
 # ==========================================
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -927,11 +781,13 @@ def webhook():
         if wtype != "incomingMessageReceived":
             return jsonify({"status": "ok"}), 200
 
+        # تفاعل
         if mt == "reactionMessage":
             if "@g.us" in chat_id:
                 handle_reaction(chat_id, sender, sender_name)
             return jsonify({"status": "ok"}), 200
 
+        # نص
         if mt == "textMessage":
             text = md.get("textMessageData", {}).get("textMessage", "")
         elif mt == "extendedTextMessage":
@@ -942,11 +798,13 @@ def webhook():
         if not text:
             return jsonify({"status": "ok"}), 200
 
+        # قروب التحكم
         if "@g.us" in chat_id:
             if chat_id in CONTROL_GROUPS:
                 handle_control(sender, text, chat_id)
             return jsonify({"status": "ok"}), 200
 
+        # رسائل خاصة
         phone = sender.replace("@c.us", "")
 
         if not phone.startswith("966"):
@@ -955,25 +813,17 @@ def webhook():
 
         if phone in provider_sessions:
             handle_provider(phone, text)
-        elif phone in registered_providers:
+        elif phone in registered_providers or phone in registered_clients:
             handle_customer(phone, text)
-        elif phone in registered_clients:
+        elif phone in checked_phones:
             handle_customer(phone, text)
         else:
-            if is_in_any_group(phone):
-                handle_customer(phone, text)
-            else:
-                handle_customer(phone, text)
+            is_in_any_group(phone)
+            handle_customer(phone, text)
 
     except Exception as e:
         print(f"Webhook error: {e}")
     return jsonify({"status": "ok"}), 200
-
-
-@app.route("/fetch_members", methods=["GET"])
-def fetch_members():
-    fetch_group_members()
-    return f"تم تسجيل {len(registered_providers)} مقدم خدمة ✅", 200
 
 
 @app.route("/", methods=["GET"])
@@ -982,6 +832,5 @@ def home():
 
 
 if __name__ == "__main__":
-    load_from_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
