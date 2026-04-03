@@ -3,7 +3,6 @@ import time
 import requests
 import threading
 from flask import Flask, request, jsonify
-from supabase import create_client, Client
 
 app = Flask(__name__)
 
@@ -17,105 +16,98 @@ ADMIN_PHONE = "966554325282"
 BANK_ACCOUNT = "SA2880000595608016106214"
 
 # ==========================================
-# إعدادات Supabase
+# إعدادات Supabase (REST API مباشرة - بدون مكتبة)
 # ==========================================
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def sb_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+
+def sb_get(table, filters=None):
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{table}"
+        r = requests.get(url, headers=sb_headers(), params=filters or {}, timeout=10)
+        return r.json() if r.status_code == 200 else []
+    except Exception as e:
+        print(f"sb_get error: {e}")
+        return []
+
+def sb_insert(table, data):
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{table}"
+        r = requests.post(url, headers=sb_headers(), json=data, timeout=10)
+        return r.json() if r.status_code in [200, 201] else None
+    except Exception as e:
+        print(f"sb_insert error: {e}")
+        return None
+
+def sb_update(table, data, filters):
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{table}"
+        r = requests.patch(url, headers=sb_headers(), json=data, params=filters, timeout=10)
+        return r.status_code in [200, 204]
+    except Exception as e:
+        print(f"sb_update error: {e}")
+        return False
 
 
 # ==========================================
-# دوال Supabase
+# دوال قاعدة البيانات
 # ==========================================
 def db_get_customer(phone):
-    try:
-        r = supabase.table("customers").select("*").eq("phone", phone).execute()
-        return r.data[0] if r.data else None
-    except Exception as e:
-        print(f"db_get_customer error: {e}")
-        return None
+    rows = sb_get("customers", {"phone": f"eq.{phone}"})
+    return rows[0] if rows else None
 
 def db_save_customer(phone, city=None):
-    try:
-        existing = db_get_customer(phone)
-        if not existing:
-            supabase.table("customers").insert({"phone": phone, "city": city}).execute()
-        elif city and not existing.get("city"):
-            supabase.table("customers").update({"city": city}).eq("phone", phone).execute()
-    except Exception as e:
-        print(f"db_save_customer error: {e}")
+    existing = db_get_customer(phone)
+    if not existing:
+        sb_insert("customers", {"phone": phone, "city": city})
+    elif city and not existing.get("city"):
+        sb_update("customers", {"city": city}, {"phone": f"eq.{phone}"})
 
 def db_get_provider(phone):
-    try:
-        r = supabase.table("providers").select("*").eq("phone", phone).execute()
-        return r.data[0] if r.data else None
-    except Exception as e:
-        print(f"db_get_provider error: {e}")
-        return None
+    rows = sb_get("providers", {"phone": f"eq.{phone}"})
+    return rows[0] if rows else None
 
 def db_save_provider(phone, name, city, category):
-    try:
-        existing = db_get_provider(phone)
-        if existing:
-            supabase.table("providers").update({
-                "name": name, "city": city, "category": category, "is_active": True
-            }).eq("phone", phone).execute()
-        else:
-            supabase.table("providers").insert({
-                "phone": phone, "name": name, "city": city, "category": category
-            }).execute()
-    except Exception as e:
-        print(f"db_save_provider error: {e}")
+    existing = db_get_provider(phone)
+    if existing:
+        sb_update("providers", {"name": name, "city": city, "category": category, "is_active": True}, {"phone": f"eq.{phone}"})
+    else:
+        sb_insert("providers", {"phone": phone, "name": name, "city": city, "category": category})
 
 def db_create_order(order_code, customer_phone, city, category):
-    try:
-        supabase.table("orders").insert({
-            "order_code": order_code,
-            "customer_phone": customer_phone,
-            "city": city,
-            "category": category,
-            "status": "pending"
-        }).execute()
-    except Exception as e:
-        print(f"db_create_order error: {e}")
+    sb_insert("orders", {
+        "order_code": order_code,
+        "customer_phone": customer_phone,
+        "city": city,
+        "category": category,
+        "status": "pending"
+    })
 
 def db_update_order(order_code, provider_phone=None, status=None):
-    try:
-        data = {}
-        if provider_phone:
-            data["provider_phone"] = provider_phone
-        if status:
-            data["status"] = status
-        if data:
-            supabase.table("orders").update(data).eq("order_code", order_code).execute()
-    except Exception as e:
-        print(f"db_update_order error: {e}")
+    data = {}
+    if provider_phone:
+        data["provider_phone"] = provider_phone
+    if status:
+        data["status"] = status
+    if data:
+        sb_update("orders", data, {"order_code": f"eq.{order_code}"})
 
 def db_save_review(order_code, customer_phone, rating, comment=None, is_complaint=False):
-    try:
-        supabase.table("reviews").insert({
-            "order_code": order_code,
-            "customer_phone": customer_phone,
-            "rating": rating,
-            "comment": comment,
-            "is_complaint": is_complaint
-        }).execute()
-    except Exception as e:
-        print(f"db_save_review error: {e}")
-
-def db_add_strike(phone):
-    try:
-        provider = db_get_provider(phone)
-        if provider:
-            strikes = provider.get("strikes", 0) + 1
-            update = {"strikes": strikes}
-            if strikes >= 3:
-                update["is_active"] = False
-            supabase.table("providers").update(update).eq("phone", phone).execute()
-            return strikes
-    except Exception as e:
-        print(f"db_add_strike error: {e}")
-    return 0
+    sb_insert("reviews", {
+        "order_code": order_code,
+        "customer_phone": customer_phone,
+        "rating": rating,
+        "comment": comment,
+        "is_complaint": is_complaint
+    })
 
 
 # ==========================================
@@ -183,7 +175,7 @@ SERVICES = {
 }
 
 # ==========================================
-# البيانات في الذاكرة (للسرعة)
+# البيانات في الذاكرة
 # ==========================================
 user_sessions = {}
 provider_sessions = {}
@@ -194,38 +186,33 @@ pending_orders = {}
 blocked_users = {}
 order_counter = [1000]
 provider_cooldown = {}
-checked_phones = set()  # أرقام تم فحصها مسبقاً (cache)
 
 
 # ==========================================
 # تحميل البيانات من Supabase عند البدء
 # ==========================================
 def load_from_db():
-    """تحميل العملاء ومزودي الخدمة من Supabase إلى الذاكرة"""
     global registered_clients, registered_providers, order_counter
     try:
-        # تحميل العملاء
-        customers = supabase.table("customers").select("phone").execute()
-        for c in customers.data:
+        customers = sb_get("customers", {"select": "phone"})
+        for c in customers:
             registered_clients.add(c["phone"])
         print(f"✅ تم تحميل {len(registered_clients)} عميل من Supabase")
 
-        # تحميل مزودي الخدمة
-        providers = supabase.table("providers").select("*").eq("is_active", True).execute()
-        for p in providers.data:
+        providers = sb_get("providers", {"is_active": "eq.true"})
+        for p in providers:
             registered_providers[p["phone"]] = {
                 "name": p.get("name", "مقدم خدمة"),
                 "city": p.get("city", ""),
                 "specialty": p.get("category", ""),
-                "status": "active" if p.get("is_active") else "inactive",
+                "status": "active",
             }
         print(f"✅ تم تحميل {len(registered_providers)} مزود خدمة من Supabase")
 
-        # تحميل آخر رقم طلب
-        orders = supabase.table("orders").select("order_code").execute()
-        if orders.data:
+        orders = sb_get("orders", {"select": "order_code"})
+        if orders:
             nums = []
-            for o in orders.data:
+            for o in orders:
                 try:
                     nums.append(int(o["order_code"].replace("AB-", "")))
                 except:
@@ -236,21 +223,6 @@ def load_from_db():
 
     except Exception as e:
         print(f"load_from_db error: {e}")
-
-
-# ==========================================
-# أرقام مقدمي الخدمة المسجلين مسبقاً
-# ==========================================
-PRE_REGISTERED_PROVIDERS = set([])
-
-for _phone in PRE_REGISTERED_PROVIDERS:
-    if _phone not in registered_providers:
-        registered_providers[_phone] = {
-            "name": "مقدم خدمة",
-            "city": "",
-            "specialty": "",
-            "status": "active",
-        }
 
 
 # ==========================================
@@ -274,7 +246,6 @@ def fetch_group_members():
                                 "specialty": service,
                                 "status": "active",
                             }
-                            # حفظ في Supabase
                             db_save_provider(phone, "مقدم خدمة", city, service)
                             print(f"✅ تم تسجيل {phone} من قروب {service} - {city}")
             except Exception as e:
@@ -282,11 +253,6 @@ def fetch_group_members():
 
 
 def is_in_any_group(phone):
-    # cache: لا نفحص نفس الرقم مرتين
-    if phone in checked_phones:
-        return phone in registered_providers
-    checked_phones.add(phone)
-
     url = f"{BASE_URL}/getGroupData/{API_TOKEN}"
     for city, groups in GROUP_IDS.items():
         for service, gid in groups.items():
@@ -459,11 +425,6 @@ def handle_provider(phone, msg):
     session = provider_sessions.get(phone, {})
     step = session.get("step", "")
 
-    if not step:
-        provider_sessions[phone] = {"step": "terms"}
-        provider_terms(phone)
-        return
-
     if step == "terms":
         if msg == "1":
             provider_sessions[phone] = {"step": "name"}
@@ -512,7 +473,6 @@ def handle_provider(phone, msg):
         city = session.get("city", "")
         specialty = SERVICES[msg]
 
-        # تسجيل في الذاكرة
         registered_providers[phone] = {
             "name": name,
             "city": city,
@@ -554,7 +514,7 @@ def create_order(phone, city, service):
     }
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
 
-    # ✅ حفظ الطلب في Supabase
+    # ✅ حفظ في Supabase
     db_create_order(oid, phone, city, service)
 
     send_msg(phone,
@@ -586,24 +546,14 @@ def create_order(phone, city, service):
 # ==========================================
 def resend_order(phone, oid, reason, price=None):
     if oid not in pending_orders:
-        user_sessions[phone] = {"step": "start"}
         return
     od = pending_orders[oid]
     od["attempts"] += 1
     od["taken"] = False
     attempts = od["attempts"]
-
-    # تحقق من الحد الأقصى للمحاولات
-    if attempts > 3:
-        blocked_users[phone] = time.time() + 15 * 60
-        send_msg(phone, "تم استنفاد المحاولات\nحسابك موقوف 15 دقيقة")
-        del pending_orders[oid]
-        user_sessions[phone] = {"step": "start"}
-        return
     if price:
         od["last_price"] = price
 
-    # ✅ تحديث الطلب في Supabase
     db_update_order(oid, status="retrying")
 
     gid = GROUP_IDS.get(od["city"], {}).get(od["service"], "")
@@ -663,19 +613,16 @@ def handle_customer(phone, msg):
 
     elif step == "service":
         city = session.get("city")
-
         if msg == "13":
             user_sessions[phone] = {"step": "admin", "city": city}
             menu_admin(phone)
-
         elif msg in SERVICES:
             service = SERVICES[msg]
-            # مقدمو الخدمة المسجلون لا يحتاجون لشروط العميل
-            if phone in registered_providers or phone in registered_clients:
-                create_order(phone, city, service)
-            else:
+            if phone not in registered_clients:
                 user_sessions[phone] = {"step": "terms", "city": city, "service": service}
                 client_terms(phone)
+            else:
+                create_order(phone, city, service)
         else:
             send_msg(phone, "الرجاء ارسال رقم من 1 الى 13")
 
@@ -724,13 +671,8 @@ def handle_customer(phone, msg):
                 f"الشكوى: {msg}"
             )
         # ✅ حفظ الشكوى في Supabase
-        db_save_review(
-            order_code=user_sessions.get(phone, {}).get("order_id", "N/A"),
-            customer_phone=phone,
-            rating=1,
-            comment=msg,
-            is_complaint=True
-        )
+        oid = user_sessions.get(phone, {}).get("order_id", "N/A")
+        db_save_review(oid, phone, rating=1, comment=msg, is_complaint=True)
         send_msg(phone, "تم استلام شكواك ✅\nسيتم التواصل معك قريباً")
         user_sessions[phone] = {"step": "start"}
 
@@ -741,13 +683,7 @@ def handle_customer(phone, msg):
         oid = session.get("order_id")
         od = pending_orders.get(oid, {})
 
-        if not oid:
-            user_sessions[phone] = {"step": "start"}
-            menu_city(phone)
-            return
-
         if msg == "1":
-            # ✅ حفظ التقييم الإيجابي في Supabase
             db_update_order(oid, status="completed")
             db_save_review(oid, phone, rating=5, comment="تم الاتفاق")
             send_msg(phone, "ممتاز! نتمنى لك تجربة رائعة مع مذكرة سلمان 🌟")
@@ -793,7 +729,6 @@ def handle_customer(phone, msg):
                     f"━━━━━━━━━━━━━━\n"
                     f"يرجى التواصل مع العميل فوراً"
                 )
-            # ✅ حفظ الشكوى في Supabase
             db_save_review(oid, phone, rating=1, is_complaint=True)
             db_update_order(oid, status="complaint")
             user_sessions[phone] = {"step": "start"}
@@ -816,11 +751,7 @@ def handle_customer(phone, msg):
             user_sessions[phone] = {"step": "custom_reason", "order_id": oid}
             send_msg(phone, "اكتب سبب عدم الاتفاق:")
         else:
-            send_msg(phone,
-                "1 - السعر مرتفع\n"
-                "2 - لم يتجاوب\n"
-                "3 - سبب آخر"
-            )
+            send_msg(phone, "1 - السعر مرتفع\n2 - لم يتجاوب\n3 - سبب آخر")
 
     elif step == "price":
         oid = session.get("order_id")
@@ -916,16 +847,10 @@ def handle_reaction(group_id, sender, sender_name):
     sender_clean = sender.replace("@c.us", "")
 
     if sender_clean not in registered_providers:
-        # تحقق أولاً إذا كان موجوداً في أي قروب
-        if is_in_any_group(sender_clean):
-            # موجود في القروب = مسجل مسبقاً، يكمل بشكل طبيعي
-            pass
-        else:
-            # جديد = أرسل له الشروط
-            if sender_clean not in provider_sessions:
-                provider_sessions[sender_clean] = {"step": "terms"}
-                provider_terms(sender_clean)
-            return
+        if sender_clean not in provider_sessions:
+            provider_sessions[sender_clean] = {"step": "terms"}
+            provider_terms(sender_clean)
+        return
 
     if sender_clean in provider_cooldown:
         until = provider_cooldown[sender_clean]
@@ -953,10 +878,9 @@ def handle_reaction(group_id, sender, sender_name):
         cp = od["phone"]
         od["blocked_providers"].append(sender_clean)
         od["taken"] = True
-
         provider_cooldown[sender_clean] = time.time() + 10 * 60
 
-        # ✅ تحديث الطلب بمزود الخدمة في Supabase
+        # ✅ تحديث الطلب في Supabase
         db_update_order(oid, provider_phone=sender_clean, status="accepted")
 
         send_msg(cp,
@@ -1026,25 +950,20 @@ def webhook():
         phone = sender.replace("@c.us", "")
 
         if not phone.startswith("966"):
-            send_msg(phone,
-                "عذراً\n"
-                "هذه الخدمة متاحة للأرقام السعودية فقط 🇸🇦"
-            )
+            send_msg(phone, "عذراً\nهذه الخدمة متاحة للأرقام السعودية فقط 🇸🇦")
             return jsonify({"status": "ok"}), 200
 
         if phone in provider_sessions:
-            # في منتصف تسجيل كمقدم خدمة
             handle_provider(phone, text)
-        elif phone in registered_providers or phone in registered_clients:
-            # مسجل سابقاً (عميل أو مقدم خدمة)
+        elif phone in registered_providers:
             handle_customer(phone, text)
-        elif phone in checked_phones:
-            # تم فحصه مسبقاً وليس في القروبات
+        elif phone in registered_clients:
             handle_customer(phone, text)
         else:
-            # جديد — فحص القروبات مرة واحدة فقط
-            is_in_any_group(phone)
-            handle_customer(phone, text)
+            if is_in_any_group(phone):
+                handle_customer(phone, text)
+            else:
+                handle_customer(phone, text)
 
     except Exception as e:
         print(f"Webhook error: {e}")
@@ -1063,7 +982,6 @@ def home():
 
 
 if __name__ == "__main__":
-    # تحميل البيانات من Supabase عند البدء
     load_from_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
