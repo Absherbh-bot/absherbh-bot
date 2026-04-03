@@ -1,10 +1,7 @@
 import os
 import time
-import json
 import requests
 import threading
-import gspread
-from google.oauth2.service_account import Credentials
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -17,154 +14,6 @@ API_TOKEN = os.environ.get("API_TOKEN", "503485c7be7c41aa9ae7737ea65750bd7b2e1fd
 BASE_URL = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
 ADMIN_PHONE = "966554325282"
 BANK_ACCOUNT = "SA2880000595608016106214"
-
-# ==========================================
-# إعدادات Google Sheets
-# ==========================================
-SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1NUHrUuhswJGEJ1_ASiEQTEvhpNnJaIllPx8jEvu5X-s")
-CLIENT_EMAIL = os.environ.get("GOOGLE_CLIENT_EMAIL", "")
-PRIVATE_KEY = os.environ.get("GOOGLE_PRIVATE_KEY", "").replace("\\n", "\n")
-
-def get_sheet():
-    """الاتصال بـ Google Sheets"""
-    try:
-        creds = Credentials.from_service_account_info(
-            {
-                "type": "service_account",
-                "project_id": "mudhakkira-salman",
-                "private_key_id": "",
-                "private_key": PRIVATE_KEY,
-                "client_email": CLIENT_EMAIL,
-                "client_id": "",
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-            },
-            scopes=["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        )
-        gc = gspread.authorize(creds)
-        return gc.open_by_key(SHEET_ID)
-    except Exception as e:
-        print(f"Sheets error: {e}")
-        return None
-
-# ==========================================
-# دوال Google Sheets
-# ==========================================
-def db_get_client(phone):
-    """هل العميل مسجل؟"""
-    try:
-        sh = get_sheet()
-        if not sh:
-            return False
-        ws = sh.worksheet("clients")
-        phones = ws.col_values(1)
-        return phone in phones
-    except:
-        return False
-
-def db_save_client(phone):
-    """حفظ عميل جديد"""
-    try:
-        sh = get_sheet()
-        if not sh:
-            return
-        ws = sh.worksheet("clients")
-        ws.append_row([phone, time.strftime("%Y-%m-%d %H:%M:%S")])
-    except Exception as e:
-        print(f"Save client error: {e}")
-
-def db_get_provider(phone):
-    """جلب بيانات مقدم الخدمة"""
-    try:
-        sh = get_sheet()
-        if not sh:
-            return None
-        ws = sh.worksheet("providers")
-        phones = ws.col_values(1)
-        if phone not in phones:
-            return None
-        row = phones.index(phone) + 1
-        data = ws.row_values(row)
-        return {
-            "phone": data[0] if len(data) > 0 else "",
-            "name": data[1] if len(data) > 1 else "",
-            "city": data[2] if len(data) > 2 else "",
-            "specialty": data[3] if len(data) > 3 else "",
-            "status": data[4] if len(data) > 4 else "active",
-            "expiry": data[5] if len(data) > 5 else "",
-        }
-    except Exception as e:
-        print(f"Get provider error: {e}")
-        return None
-
-def db_save_provider(phone, name, city, specialty, status="active", expiry=""):
-    """حفظ أو تحديث مقدم الخدمة"""
-    try:
-        sh = get_sheet()
-        if not sh:
-            return
-        ws = sh.worksheet("providers")
-        phones = ws.col_values(1)
-        row_data = [phone, name, city, specialty, status, expiry, time.strftime("%Y-%m-%d %H:%M:%S")]
-        if phone in phones:
-            row = phones.index(phone) + 1
-            ws.update(f"A{row}:G{row}", [row_data])
-        else:
-            ws.append_row(row_data)
-    except Exception as e:
-        print(f"Save provider error: {e}")
-
-def db_save_order(oid, phone, city, service, status="pending", attempts=1):
-    """حفظ الطلب"""
-    try:
-        sh = get_sheet()
-        if not sh:
-            return
-        ws = sh.worksheet("orders")
-        ws.append_row([oid, phone, city, service, status, attempts, time.strftime("%Y-%m-%d %H:%M:%S")])
-    except Exception as e:
-        print(f"Save order error: {e}")
-
-def db_get_session(phone):
-    """جلب جلسة المستخدم"""
-    try:
-        sh = get_sheet()
-        if not sh:
-            return None
-        ws = sh.worksheet("sessions")
-        phones = ws.col_values(1)
-        if phone not in phones:
-            return None
-        row = phones.index(phone) + 1
-        data = ws.row_values(row)
-        if len(data) > 2 and data[2]:
-            return json.loads(data[2])
-        return {"step": data[1]} if len(data) > 1 else None
-    except:
-        return None
-
-def db_save_session(phone, step, data=None):
-    """حفظ جلسة المستخدم"""
-    try:
-        sh = get_sheet()
-        if not sh:
-            return
-        ws = sh.worksheet("sessions")
-        phones = ws.col_values(1)
-        session_data = json.dumps(data or {}, ensure_ascii=False)
-        row_data = [phone, step, session_data, time.strftime("%Y-%m-%d %H:%M:%S")]
-        if phone in phones:
-            row = phones.index(phone) + 1
-            ws.update(f"A{row}:D{row}", [row_data])
-        else:
-            ws.append_row(row_data)
-    except Exception as e:
-        print(f"Save session error: {e}")
-
-def db_is_in_group(phone):
-    """التحقق إذا كان الرقم موجوداً في أي قروب"""
-    provider = db_get_provider(phone)
-    return provider is not None
 
 # ==========================================
 # القروبات
@@ -210,11 +59,6 @@ CONTROL_GROUPS = {
     "120363425346411953@g.us": "الرياض",
 }
 
-SUBSCRIPTION_GROUPS = {
-    "120363426553396012@g.us": "حائل",
-    "120363423591283914@g.us": "الرياض",
-}
-
 CITIES = {
     "1": "حائل",
     "2": "الرياض",
@@ -236,16 +80,17 @@ SERVICES = {
 }
 
 # ==========================================
-# البيانات في الذاكرة (cache)
+# البيانات في الذاكرة
 # ==========================================
 user_sessions = {}
 provider_sessions = {}
 control_sessions = {}
+registered_clients = set()
+registered_providers = {}
 pending_orders = {}
 blocked_users = {}
 provider_cooldown = {}
 order_counter = [1000]
-pending_subscriptions = {}
 
 
 # ==========================================
@@ -261,6 +106,7 @@ def send_msg(to, text):
         print(f"Send error: {e}")
         return ""
 
+
 def send_group(gid, text):
     url = f"{BASE_URL}/sendMessage/{API_TOKEN}"
     try:
@@ -269,6 +115,7 @@ def send_group(gid, text):
     except Exception as e:
         print(f"Group error: {e}")
         return ""
+
 
 def add_to_group(phone, gid):
     url = f"{BASE_URL}/addGroupParticipant/{API_TOKEN}"
@@ -280,16 +127,6 @@ def add_to_group(phone, gid):
         print(f"✅ أضيف {phone} للقروب {gid}")
     except Exception as e:
         print(f"❌ خطأ إضافة: {e}")
-
-def remove_from_group(phone, gid):
-    url = f"{BASE_URL}/removeGroupParticipant/{API_TOKEN}"
-    try:
-        requests.post(url, json={
-            "groupId": gid,
-            "participantChatId": f"{phone}@c.us"
-        }, timeout=10)
-    except Exception as e:
-        print(f"❌ خطأ إزالة: {e}")
 
 
 # ==========================================
@@ -318,6 +155,7 @@ def menu_city(phone):
         "ارسل رقم مدينتك"
     )
 
+
 def menu_service(phone, city):
     send_msg(phone,
         f"اخترت {city}\n\n"
@@ -338,6 +176,7 @@ def menu_service(phone, city):
         "ارسل رقم الخدمة"
     )
 
+
 def menu_admin(phone):
     send_msg(phone,
         "اختر من القائمة:\n\n"
@@ -346,38 +185,33 @@ def menu_admin(phone):
         "3 - شكوى"
     )
 
+
 def menu_provider_main(phone, provider):
     name = provider.get("name", "")
-    city = provider.get("city", "")
-    specialty = provider.get("specialty", "")
-    status = "مفعّل ✅" if provider.get("status") == "active" else "موقوف ⚠️"
-    expiry = provider.get("expiry", "")
-
     send_msg(phone,
         f"مرحباً {name} 👋\n\n"
-        f"اختر من القائمة:\n\n"
-        f"1 - طلب جديد (كعميل)\n"
-        f"2 - حسابي\n"
-        f"3 - تواصل مع الإدارة"
+        "اختر من القائمة:\n\n"
+        "1 - طلب جديد (كعميل)\n"
+        "2 - حسابي\n"
+        "3 - تواصل مع الإدارة"
     )
+
 
 def menu_provider_account(phone, provider):
     name = provider.get("name", "")
     city = provider.get("city", "")
     specialty = provider.get("specialty", "")
     status = "مفعّل ✅" if provider.get("status") == "active" else "موقوف ⚠️"
-    expiry = provider.get("expiry", "لا يوجد")
 
     send_msg(phone,
         f"معلومات حسابك:\n\n"
         f"الاسم: {name}\n"
         f"المدينة: {city}\n"
         f"التخصص: {specialty}\n"
-        f"الحالة: {status}\n"
-        f"الاشتراك: {expiry}\n\n"
-        f"1 - تجديد الاشتراك\n"
-        f"2 - رجوع"
+        f"الحالة: {status}\n\n"
+        f"1 - رجوع"
     )
+
 
 def client_terms(phone):
     send_msg(phone,
@@ -396,6 +230,7 @@ def client_terms(phone):
         "1 - أوافق ✅\n"
         "2 - لا أوافق ❌"
     )
+
 
 def provider_terms(phone):
     send_msg(phone,
@@ -481,10 +316,13 @@ def handle_provider_registration(phone, msg):
         city = session.get("city", "")
         specialty = SERVICES[msg]
 
-        # حفظ في Google Sheets
-        db_save_provider(phone, name, city, specialty)
+        registered_providers[phone] = {
+            "name": name,
+            "city": city,
+            "specialty": specialty,
+            "status": "active",
+        }
 
-        # إضافة للقروب
         gid = GROUP_IDS.get(city, {}).get(specialty, "")
         if gid:
             add_to_group(phone, gid)
@@ -501,7 +339,7 @@ def handle_provider_registration(phone, msg):
 
 
 # ==========================================
-# قائمة مقدم الخدمة الرئيسية
+# قائمة مقدم الخدمة
 # ==========================================
 def handle_provider_menu(phone, msg, provider):
     session = user_sessions.get(phone, {"step": "provider_main"})
@@ -509,15 +347,12 @@ def handle_provider_menu(phone, msg, provider):
 
     if step == "provider_main":
         if msg == "1":
-            # كعميل
             user_sessions[phone] = {"step": "city"}
             menu_city(phone)
         elif msg == "2":
-            # حسابي
             user_sessions[phone] = {"step": "provider_account"}
             menu_provider_account(phone, provider)
         elif msg == "3":
-            # تواصل مع الإدارة
             user_sessions[phone] = {"step": "provider_contact"}
             send_msg(phone, "اكتب رسالتك للإدارة:")
         else:
@@ -525,16 +360,6 @@ def handle_provider_menu(phone, msg, provider):
 
     elif step == "provider_account":
         if msg == "1":
-            # تجديد الاشتراك
-            user_sessions[phone] = {"step": "provider_renewal"}
-            send_msg(phone,
-                "لتجديد اشتراكك:\n\n"
-                f"حوّل 20 ريال على حساب الراجحي:\n"
-                f"{BANK_ACCOUNT}\n\n"
-                "وأرسل صورة الإيصال هنا 📸"
-            )
-        elif msg == "2":
-            # رجوع
             user_sessions[phone] = {"step": "provider_main"}
             menu_provider_main(phone, provider)
         else:
@@ -571,9 +396,6 @@ def create_order(phone, city, service):
         "taken": False,
     }
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
-
-    # حفظ في Sheets
-    db_save_order(oid, phone, city, service)
 
     send_msg(phone,
         f"تم استلام طلبك ✅\n"
@@ -670,8 +492,7 @@ def handle_customer(phone, msg):
             menu_admin(phone)
         elif msg in SERVICES:
             service = SERVICES[msg]
-            is_registered = db_get_client(phone)
-            if not is_registered:
+            if phone not in registered_clients:
                 user_sessions[phone] = {"step": "terms", "city": city, "service": service}
                 client_terms(phone)
             else:
@@ -683,7 +504,7 @@ def handle_customer(phone, msg):
         city = session.get("city")
         service = session.get("service")
         if msg == "1":
-            db_save_client(phone)
+            registered_clients.add(phone)
             create_order(phone, city, service)
         elif msg == "2":
             send_msg(phone, "شكراً لك\nنتمنى خدمتك في وقت آخر 🌟")
@@ -753,7 +574,9 @@ def handle_customer(phone, msg):
             send_msg(phone, "نأسف لما تمر به\nسيتواصل معك فريق الإدارة قريباً 🙏")
             if admin_gid:
                 send_group(admin_gid,
-                    f"🚨 شكوى عميل\nرقم الطلب: {oid}\nرقم العميل: {phone}"
+                    f"🚨 شكوى عميل\n"
+                    f"رقم الطلب: {oid}\n"
+                    f"رقم العميل: {phone}"
                 )
             user_sessions[phone] = {"step": "start"}
         else:
@@ -848,6 +671,7 @@ def handle_control(sender, text, group_id):
         name  = session.get("name")
         gid   = session.get("gid")
         reply = session.get("reply", group_id)
+
         if gid == "all":
             targets = list(GROUP_IDS.get(city, {}).values())
             admin_g = ADMIN_GROUPS.get(city, "")
@@ -859,6 +683,7 @@ def handle_control(sender, text, group_id):
         else:
             send_group(gid, msg)
             send_group(reply, f"✅ تم الإرسال لقروب {name}")
+
         control_sessions[city] = {"step": "start"}
 
 
@@ -868,11 +693,8 @@ def handle_control(sender, text, group_id):
 def handle_reaction(group_id, sender, sender_name):
     sender_clean = sender.replace("@c.us", "")
 
-    # جلب بيانات مقدم الخدمة من Sheets
-    provider = db_get_provider(sender_clean)
-
-    if not provider:
-        # غير مسجل
+    # مقدم خدمة غير مسجل
+    if sender_clean not in registered_providers:
         if sender_clean not in provider_sessions:
             provider_sessions[sender_clean] = {"step": "terms"}
             provider_terms(sender_clean)
@@ -983,25 +805,19 @@ def webhook():
 
         # توجيه الرسالة
         if phone in provider_sessions:
-            # في جلسة تسجيل
             handle_provider_registration(phone, text)
-        else:
-            # تحقق من نوع المستخدم
-            provider = db_get_provider(phone)
-            if provider:
-                # مقدم خدمة مسجل
-                session = user_sessions.get(phone, {"step": "provider_main"})
-                step = session.get("step", "provider_main")
-                if step in ["city", "service", "terms", "waiting",
-                            "provider_sent", "reason", "price",
-                            "custom_reason", "admin", "complaint"]:
-                    handle_customer(phone, text)
-                else:
-                    user_sessions[phone] = {"step": "provider_main"}
-                    handle_provider_menu(phone, text, provider)
-            else:
-                # عميل
+        elif phone in registered_providers:
+            session = user_sessions.get(phone, {"step": "provider_main"})
+            step = session.get("step", "provider_main")
+            if step in ["city", "service", "terms", "waiting",
+                        "provider_sent", "reason", "price",
+                        "custom_reason", "admin", "complaint"]:
                 handle_customer(phone, text)
+            else:
+                user_sessions[phone] = {"step": "provider_main"}
+                handle_provider_menu(phone, text, registered_providers[phone])
+        else:
+            handle_customer(phone, text)
 
     except Exception as e:
         print(f"Webhook error: {e}")
