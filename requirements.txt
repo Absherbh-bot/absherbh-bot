@@ -1,5 +1,6 @@
 flask==3.0.0
 requests==2.31.0
 gunicorn==21.2.0
-gspread
-google-auth
+gspread==6.1.2
+google-auth==2.29.0
+google-auth-oauthlib==1.2.0
