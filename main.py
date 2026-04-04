@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import requests
 import threading
 from flask import Flask, request, jsonify
@@ -80,6 +81,47 @@ SERVICES = {
 }
 
 # ==========================================
+# مسار حفظ البيانات على Disk
+# ==========================================
+DATA_PATH = "/opt/render/project/data"
+PROVIDERS_FILE = f"{DATA_PATH}/providers.json"
+CLIENTS_FILE = f"{DATA_PATH}/clients.json"
+
+def load_data():
+    """تحميل البيانات من Disk عند بدء التشغيل"""
+    global registered_providers, registered_clients
+    try:
+        os.makedirs(DATA_PATH, exist_ok=True)
+        if os.path.exists(PROVIDERS_FILE):
+            with open(PROVIDERS_FILE, "r", encoding="utf-8") as f:
+                registered_providers = json.load(f)
+            print(f"✅ تم تحميل {len(registered_providers)} مقدم خدمة")
+        if os.path.exists(CLIENTS_FILE):
+            with open(CLIENTS_FILE, "r", encoding="utf-8") as f:
+                registered_clients = set(json.load(f))
+            print(f"✅ تم تحميل {len(registered_clients)} عميل")
+    except Exception as e:
+        print(f"خطأ في تحميل البيانات: {e}")
+
+def save_providers():
+    """حفظ مقدمي الخدمة على Disk"""
+    try:
+        os.makedirs(DATA_PATH, exist_ok=True)
+        with open(PROVIDERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(registered_providers, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"خطأ في حفظ مقدمي الخدمة: {e}")
+
+def save_clients():
+    """حفظ العملاء على Disk"""
+    try:
+        os.makedirs(DATA_PATH, exist_ok=True)
+        with open(CLIENTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(registered_clients), f, ensure_ascii=False)
+    except Exception as e:
+        print(f"خطأ في حفظ العملاء: {e}")
+
+# ==========================================
 # البيانات في الذاكرة
 # ==========================================
 user_sessions = {}
@@ -91,6 +133,9 @@ pending_orders = {}
 blocked_users = {}
 provider_cooldown = {}
 order_counter = [1000]
+
+# تحميل البيانات عند بدء التشغيل
+load_data()
 
 
 # ==========================================
@@ -322,6 +367,7 @@ def handle_provider_registration(phone, msg):
             "specialty": specialty,
             "status": "active",
         }
+        save_providers()
 
         gid = GROUP_IDS.get(city, {}).get(specialty, "")
         if gid:
@@ -505,6 +551,7 @@ def handle_customer(phone, msg):
         service = session.get("service")
         if msg == "1":
             registered_clients.add(phone)
+            save_clients()
             create_order(phone, city, service)
         elif msg == "2":
             send_msg(phone, "شكراً لك\nنتمنى خدمتك في وقت آخر 🌟")
