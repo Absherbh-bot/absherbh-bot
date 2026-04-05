@@ -857,12 +857,17 @@ def handle_customer(phone, msg):
 # قروب التحكم
 # ==========================================
 def handle_control(sender, text):
-    if sender.replace("@c.us", "") != ADMIN_PHONE:
+    sender_phone = sender.replace("@c.us", "").replace("+", "")
+    print(f"DEBUG control: sender={sender_phone}, admin={ADMIN_PHONE}, text={text}")
+
+    if sender_phone != ADMIN_PHONE:
+        print(f"DEBUG: sender {sender_phone} != admin {ADMIN_PHONE}")
         return
 
     session = control_sessions.get("main", {"step": "start"})
     step    = session.get("step", "start")
     msg     = text.strip()
+    print(f"DEBUG control step={step}, msg={msg}")
 
     if step in ["start", ""]:
         control_sessions["main"] = {"step": "choose"}
