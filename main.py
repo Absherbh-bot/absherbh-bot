@@ -3,7 +3,7 @@ import time
 import json
 import requests
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -11,44 +11,56 @@ app = Flask(__name__)
 # ==========================================
 # تحويل الأرقام العربية للإنجليزية
 # ==========================================
-def normalize_number(text):
+def normalize(text):
     arabic = '٠١٢٣٤٥٦٧٨٩'
-    english = '0123456789'
-    for a, e in zip(arabic, english):
-        text = text.replace(a, e)
+    for i, a in enumerate(arabic):
+        text = text.replace(a, str(i))
     return text.strip()
 
 # ==========================================
 # إعدادات Green API
 # ==========================================
-INSTANCE_ID = os.environ.get("INSTANCE_ID", "7107565478")
-API_TOKEN   = os.environ.get("API_TOKEN", "503485c7be7c41aa9ae7737ea65750bd7b2e1fd0d8f943d796")
-BASE_URL    = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
+INSTANCE_ID  = os.environ.get("INSTANCE_ID", "7107565478")
+API_TOKEN    = os.environ.get("API_TOKEN", "503485c7be7c41aa9ae7737ea65750bd7b2e1fd0d8f943d796")
+BASE_URL     = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
 ADMIN_PHONE  = "966554325282"
 BANK_ACCOUNT = "SA2880000595608016106214"
+ADMIN_GROUP  = "120363411052676048@g.us"
 
 # ==========================================
-# القروبات الرئيسية
-# ==========================================
-CONTROL_GROUP = "120363425055793404@g.us"
-ADMIN_GROUP   = "120363411052676048@g.us"
-
-# ==========================================
-# المدن والخدمات
+# المدن
 # ==========================================
 CITIES = {
-    "1": "حائل",
-    "2": "الرياض",
-    "3": "القصيم",
-    "4": "المدينة المنورة",
-    "5": "الدمام",
-    "6": "جدة",
-    "7": "أبها",
-    "8": "تبوك",
-    "9": "الطائف",
-    "10": "بريدة",
+    "1":  "الرياض",
+    "2":  "جدة",
+    "3":  "مكة المكرمة",
+    "4":  "المدينة المنورة",
+    "5":  "الدمام",
+    "6":  "الخبر",
+    "7":  "الأحساء",
+    "8":  "تبوك",
+    "9":  "أبها",
+    "10": "حائل",
+    "11": "القصيم",
+    "12": "خميس مشيط",
+    "13": "الطائف",
+    "14": "ينبع",
+    "15": "الجبيل",
+    "16": "القطيف",
+    "17": "نجران",
+    "18": "جازان",
+    "19": "سكاكا",
+    "20": "حفر الباطن",
+    "21": "عرعر",
+    "22": "الجوف",
+    "23": "رفحاء",
+    "24": "الباحة",
+    "25": "عسير",
 }
 
+# ==========================================
+# الخدمات
+# ==========================================
 SERVICES = {
     "1":  "الهندسية",
     "2":  "العقارية",
@@ -65,7 +77,7 @@ SERVICES = {
 }
 
 # ==========================================
-# مسار Render Disk
+# Render Disk
 # ==========================================
 DATA_PATH      = "/opt/render/project/data"
 PROVIDERS_FILE = f"{DATA_PATH}/providers.json"
@@ -81,12 +93,10 @@ registered_clients   = set()
 registered_providers = {}
 pending_orders    = {}
 blocked_users     = {}
-provider_cooldown = {}  # { phone: until_timestamp } — 5 دقائق بين كل طلب
+provider_cooldown = {}
 order_counter     = [1000]
-order_queue       = []  # طابور الطلبات
-last_activity     = {}  # { phone: timestamp } آخر نشاط للمستخدم
-SESSION_TIMEOUT   = 2 * 60  # دقيقتان بدون نشاط = إعادة البدء
-
+last_activity     = {}
+SESSION_TIMEOUT   = 2 * 60  # دقيقتان
 
 # ==========================================
 # حفظ وتحميل البيانات
@@ -104,7 +114,7 @@ def load_data():
                 registered_clients = set(json.load(f))
             print(f"✅ تم تحميل {len(registered_clients)} عميل")
     except Exception as e:
-        print(f"خطأ في تحميل البيانات: {e}")
+        print(f"خطأ تحميل: {e}")
 
 def save_providers():
     try:
@@ -112,7 +122,7 @@ def save_providers():
         with open(PROVIDERS_FILE, "w", encoding="utf-8") as f:
             json.dump(registered_providers, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"خطأ في حفظ المقدمين: {e}")
+        print(f"خطأ حفظ مقدمين: {e}")
 
 def save_clients():
     try:
@@ -120,8 +130,7 @@ def save_clients():
         with open(CLIENTS_FILE, "w", encoding="utf-8") as f:
             json.dump(list(registered_clients), f, ensure_ascii=False)
     except Exception as e:
-        print(f"خطأ في حفظ العملاء: {e}")
-
+        print(f"خطأ حفظ عملاء: {e}")
 
 # ==========================================
 # دوال الإرسال
@@ -145,9 +154,8 @@ def send_group(gid, text):
         print(f"Group error: {e}")
         return ""
 
-
 # ==========================================
-# عدد مقدمي الخدمة لكل تخصص ومدينة
+# دوال مساعدة
 # ==========================================
 def count_providers(city, service):
     return sum(
@@ -157,95 +165,84 @@ def count_providers(city, service):
         and d.get("status") == "active"
     )
 
-def count_providers_by_service(service):
-    return sum(
-        1 for d in registered_providers.values()
-        if d.get("specialty") == service
-        and d.get("status") == "active"
-    )
-
-
-# ==========================================
-# نظام انتهاء الجلسة
-# ==========================================
-def check_session_timeout(phone):
-    """إذا مر دقيقتان بدون نشاط — إعادة البدء"""
-    if phone in last_activity:
-        if time.time() - last_activity[phone] > SESSION_TIMEOUT:
-            # انتهت الجلسة — إعادة البدء
-            if phone in user_sessions:
-                del user_sessions[phone]
-            if phone in provider_sessions:
-                del provider_sessions[phone]
-            last_activity[phone] = time.time()
-            return True
-    last_activity[phone] = time.time()
-    return False
-
-
-# ==========================================
-# نظام الحظر
-# ==========================================
-def is_blocked(phone):
-    if phone in blocked_users:
-        until = blocked_users[phone]
-        if time.time() < until:
-            remaining = int((until - time.time()) / 60)
-            return True, remaining
-        del blocked_users[phone]
-    return False, 0
-
-
-# ==========================================
-# فحص الاشتراك
-# ==========================================
 def check_subscription(provider):
     expiry = provider.get("expiry", "")
     if not expiry:
         return True
     try:
-        expiry_date = datetime.strptime(expiry, "%Y-%m-%d")
-        return datetime.now() < expiry_date
+        return datetime.now() < datetime.strptime(expiry, "%Y-%m-%d")
     except:
         return True
 
+def is_blocked(phone):
+    if phone in blocked_users:
+        until = blocked_users[phone]
+        if time.time() < until:
+            return True, int((until - time.time()) / 60)
+        del blocked_users[phone]
+    return False, 0
+
+def check_timeout(phone):
+    """دقيقتان بدون نشاط = إعادة البدء"""
+    now = time.time()
+    if phone in last_activity:
+        if now - last_activity[phone] > SESSION_TIMEOUT:
+            user_sessions.pop(phone, None)
+            provider_sessions.pop(phone, None)
+            last_activity[phone] = now
+            return True
+    last_activity[phone] = now
+    return False
 
 # ==========================================
 # القوائم
 # ==========================================
 def menu_city(phone):
     send_msg(phone,
-        "اهلا بك في مذكرة سلمان\n\n"
+        "اهلا بك في مذكرة سلمان 🌟\n\n"
         "اختر مدينتك:\n\n"
-        "1  - حائل\n"
-        "2  - الرياض\n"
-        "3  - القصيم\n"
+        "1  - الرياض\n"
+        "2  - جدة\n"
+        "3  - مكة المكرمة\n"
         "4  - المدينة المنورة\n"
         "5  - الدمام\n"
-        "6  - جدة\n"
-        "7  - أبها\n"
+        "6  - الخبر\n"
+        "7  - الأحساء\n"
         "8  - تبوك\n"
-        "9  - الطائف\n"
-        "10 - بريدة\n\n"
+        "9  - أبها\n"
+        "10 - حائل\n"
+        "11 - القصيم\n"
+        "12 - خميس مشيط\n"
+        "13 - الطائف\n"
+        "14 - ينبع\n"
+        "15 - الجبيل\n"
+        "16 - القطيف\n"
+        "17 - نجران\n"
+        "18 - جازان\n"
+        "19 - سكاكا\n"
+        "20 - حفر الباطن\n"
+        "21 - عرعر\n"
+        "22 - الجوف\n"
+        "23 - رفحاء\n"
+        "24 - الباحة\n"
+        "25 - عسير\n\n"
         "ارسل رقم مدينتك"
     )
 
 def menu_service(phone, city):
-    # حساب عدد المقدمين لكل خدمة في المدينة المحددة
     lines = []
     for num, svc in SERVICES.items():
         count = count_providers(city, svc)
         lines.append(f"{num.rjust(2)} - {svc} ({count} مقدم)")
-
     send_msg(phone,
-        f"اخترت {city}\n\n"
+        f"اخترت: {city}\n\n"
         "اختر الخدمة:\n\n" +
         "\n".join(lines) +
-        "\n13 - الإدارة\n\n"
+        "\n\n13 - الإدارة\n\n"
         "ارسل رقم الخدمة"
     )
 
-def menu_admin(phone):
+def menu_admin_options(phone):
     send_msg(phone,
         "اختر من القائمة:\n\n"
         "1 - تسجيل كمقدم خدمة\n"
@@ -254,9 +251,8 @@ def menu_admin(phone):
     )
 
 def menu_provider_main(phone, provider):
-    name = provider.get("name", "")
     send_msg(phone,
-        f"مرحباً {name} 👋\n\n"
+        f"مرحباً {provider.get('name', '')} 👋\n\n"
         "اختر من القائمة:\n\n"
         "1 - طلب جديد (كعميل)\n"
         "2 - حسابي\n"
@@ -264,16 +260,13 @@ def menu_provider_main(phone, provider):
     )
 
 def menu_provider_account(phone, provider):
-    name      = provider.get("name", "")
-    city      = provider.get("city", "")
-    specialty = provider.get("specialty", "")
-    expiry    = provider.get("expiry", "غير محدد")
-    status    = "مفعّل ✅" if provider.get("status") == "active" else "موقوف ⚠️"
+    expiry = provider.get("expiry", "غير محدد")
+    status = "مفعّل ✅" if provider.get("status") == "active" else "موقوف ⚠️"
     send_msg(phone,
         f"معلومات حسابك:\n\n"
-        f"الاسم: {name}\n"
-        f"المدينة: {city}\n"
-        f"التخصص: {specialty}\n"
+        f"الاسم: {provider.get('name', '')}\n"
+        f"المدينة: {provider.get('city', '')}\n"
+        f"التخصص: {provider.get('specialty', '')}\n"
         f"الحالة: {status}\n"
         f"الاشتراك: {expiry}\n\n"
         f"1 - رجوع"
@@ -325,7 +318,6 @@ def provider_terms(phone):
         "━━━━━━━━━━━━━━"
     )
 
-
 # ==========================================
 # تسجيل مقدم الخدمة
 # ==========================================
@@ -339,28 +331,15 @@ def handle_provider_registration(phone, msg):
             send_msg(phone, "ممتاز! 👍\n\nأرسل اسمك الكامل:")
         elif msg == "2":
             send_msg(phone, "شكراً لاهتمامك\nنتمنى انضمامك مستقبلاً 🌟")
-            del provider_sessions[phone]
+            provider_sessions.pop(phone, None)
 
     elif step == "name":
         provider_sessions[phone] = {"step": "city", "name": msg}
-        send_msg(phone,
-            "اختر مدينتك:\n\n"
-            "1  - حائل\n"
-            "2  - الرياض\n"
-            "3  - القصيم\n"
-            "4  - المدينة المنورة\n"
-            "5  - الدمام\n"
-            "6  - جدة\n"
-            "7  - أبها\n"
-            "8  - تبوك\n"
-            "9  - الطائف\n"
-            "10 - بريدة\n\n"
-            "ارسل رقم مدينتك"
-        )
+        menu_city(phone)
 
     elif step == "city":
         if msg not in CITIES:
-            send_msg(phone, "الرجاء ارسال رقم من 1 الى 10")
+            send_msg(phone, "الرجاء ارسال رقم من 1 الى 25")
             return
         provider_sessions[phone].update({"step": "specialty", "city": CITIES[msg]})
         send_msg(phone,
@@ -413,21 +392,14 @@ def handle_provider_registration(phone, msg):
             f"التخصص: {specialty}\n"
             f"الرقم: {phone}"
         )
-        del provider_sessions[phone]
-
+        provider_sessions.pop(phone, None)
 
 # ==========================================
 # قائمة مقدم الخدمة
 # ==========================================
 def handle_provider_menu(phone, msg, provider):
-    # فحص انتهاء الجلسة
-    timed_out = check_session_timeout(phone)
-    if timed_out:
-        session = {"step": "provider_main"}
-        user_sessions[phone] = session
-    else:
-        session = user_sessions.get(phone, {"step": "provider_main"})
-    step = session.get("step", "provider_main")
+    session = user_sessions.get(phone, {"step": "provider_main"})
+    step    = session.get("step", "provider_main")
 
     if step == "provider_main":
         if msg == "1":
@@ -447,10 +419,9 @@ def handle_provider_menu(phone, msg, provider):
         menu_provider_main(phone, provider)
 
     elif step == "provider_contact":
-        name = provider.get("name", "")
         send_group(ADMIN_GROUP,
             f"📞 رسالة من مقدم خدمة\n"
-            f"الاسم: {name}\n"
+            f"الاسم: {provider.get('name', '')}\n"
             f"الرقم: {phone}\n"
             f"الرسالة: {msg}"
         )
@@ -458,15 +429,14 @@ def handle_provider_menu(phone, msg, provider):
         user_sessions[phone] = {"step": "provider_main"}
         menu_provider_main(phone, provider)
 
-
 # ==========================================
-# إنشاء الطلب
+# إنشاء الطلب — نظام الطابور
 # ==========================================
 def create_order(phone, city, service, description=""):
     order_counter[0] += 1
-    oid = f"AB-{order_counter[0]}"
+    oid = f"MS-{order_counter[0]}"
 
-    matched_providers = [
+    matched = [
         p for p, d in registered_providers.items()
         if d.get("city") == city
         and d.get("specialty") == service
@@ -475,15 +445,16 @@ def create_order(phone, city, service, description=""):
     ]
 
     pending_orders[oid] = {
-        "phone":             phone,
-        "city":              city,
-        "service":           service,
-        "description":       description,
-        "attempts":          1,
-        "blocked_providers": [],
-        "taken":             False,
-        "providers":         matched_providers,
-        "queue_index":       0,
+        "phone":            phone,
+        "city":             city,
+        "service":          service,
+        "description":      description,
+        "attempts":         1,
+        "blocked":          [],
+        "taken":            False,
+        "providers":        matched,
+        "queue_index":      0,
+        "current_provider": None,
     }
 
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
@@ -494,7 +465,7 @@ def create_order(phone, city, service, description=""):
         f"سيتم التواصل معك خلال 5 دقائق"
     )
 
-    if not matched_providers:
+    if not matched:
         send_msg(phone,
             "عذراً\n"
             "لا يوجد مقدم خدمة متاح الآن\n"
@@ -505,53 +476,39 @@ def create_order(phone, city, service, description=""):
             f"رقم الطلب: {oid}\n"
             f"المدينة: {city}\n"
             f"الخدمة: {service}\n"
-            f"رقم العميل: {phone}"
+            f"العميل: {phone}"
         )
         return
 
-    # إرسال للأول في القائمة
-    send_order_to_next_provider(oid)
+    send_to_next(oid)
 
-
-# ==========================================
-# نظام الطابور — إرسال للمقدم التالي
-# ==========================================
-def send_order_to_next_provider(oid):
+def send_to_next(oid):
+    """إرسال الطلب للمقدم التالي في الطابور"""
     if oid not in pending_orders:
         return
-
     od       = pending_orders[oid]
     providers = od.get("providers", [])
     idx      = od.get("queue_index", 0)
 
-    # البحث عن مقدم غير محظور وليس عليه cooldown
     while idx < len(providers):
-        p_phone = providers[idx]
-
-        if p_phone in od.get("blocked_providers", []):
+        p = providers[idx]
+        if p in od.get("blocked", []):
+            idx += 1
+            continue
+        if p in provider_cooldown and time.time() < provider_cooldown[p]:
             idx += 1
             continue
 
-        # فحص cooldown 15 دقيقة
-        if p_phone in provider_cooldown:
-            until = provider_cooldown[p_phone]
-            if time.time() < until:
-                idx += 1
-                continue
-            else:
-                del provider_cooldown[p_phone]
-
-        # وجدنا مقدم خدمة متاح
         od["queue_index"]     = idx
-        od["current_provider"] = p_phone
+        od["current_provider"] = p
 
-        desc_line = f"الوصف: {od['description']}\n" if od.get("description") else ""
-        send_msg(p_phone,
+        desc = f"الوصف: {od['description']}\n" if od.get("description") else ""
+        send_msg(p,
             f"طلب جديد 🔔\n"
             f"رقم الطلب: {oid}\n"
             f"المدينة: {od['city']}\n"
             f"الخدمة: {od['service']}\n"
-            f"{desc_line}"
+            f"{desc}"
             f"━━━━━━━━━━━━━━\n"
             f"لاستلام الطلب أرسل: 1\n\n"
             f"To accept send: 1\n\n"
@@ -559,86 +516,66 @@ def send_order_to_next_provider(oid):
             f"━━━━━━━━━━━━━━"
         )
 
-        # جدولة انتقال الطلب للتالي بعد 15 دقيقة
-        threading.Timer(
-            5 * 60,
-            check_order_timeout,
-            args=[oid, p_phone]
-        ).start()
-
+        # انتقال تلقائي بعد 5 دقائق
+        threading.Timer(5 * 60, timeout_order, args=[oid, p]).start()
         return
 
     # لا يوجد مقدم متاح
     cp = od["phone"]
     send_msg(cp,
-        "عذراً\n"
-        "لم يتمكن أي مقدم خدمة من استلام طلبك الآن\n"
-        "سيتم التواصل معك في أقرب وقت"
+        "عذراً\nلم يتمكن أي مقدم خدمة من الاستجابة الآن\n"
+        "سيتواصل معك فريق الإدارة قريباً"
     )
     send_group(ADMIN_GROUP,
         f"⚠️ طلب بدون مستجيب\n"
         f"رقم الطلب: {oid}\n"
         f"المدينة: {od['city']}\n"
         f"الخدمة: {od['service']}\n"
-        f"رقم العميل: {cp}"
+        f"العميل: {cp}"
     )
 
-
-# ==========================================
-# انتهاء وقت الانتظار — انتقال للتالي
-# ==========================================
-def check_order_timeout(oid, p_phone):
+def timeout_order(oid, p_phone):
+    """انتهى وقت الانتظار — انتقل للمقدم التالي"""
     if oid not in pending_orders:
         return
     od = pending_orders[oid]
-    if od.get("taken"):
+    if od.get("taken") or od.get("current_provider") != p_phone:
         return
-    if od.get("current_provider") != p_phone:
-        return
-
-    # لم يستجب — انتقل للتالي
-    od["blocked_providers"].append(p_phone)
+    od["blocked"].append(p_phone)
     od["queue_index"] = od.get("queue_index", 0) + 1
-    send_order_to_next_provider(oid)
-
+    send_to_next(oid)
 
 # ==========================================
 # استلام الطلب من مقدم الخدمة
 # ==========================================
 def handle_provider_accept(phone):
-    # فحص cooldown 15 دقيقة
-    if phone in provider_cooldown:
-        until = provider_cooldown[phone]
-        if time.time() < until:
-            remaining_m = int((until - time.time()) / 60)
-            remaining_s = int((until - time.time()) % 60)
-            send_msg(phone,
-                f"يمكنك استلام الطلب القادم بعد:\n"
-                f"{remaining_m} دقيقة و{remaining_s} ثانية ⏱️"
-            )
-            return
-        del provider_cooldown[phone]
+    # فحص cooldown
+    if phone in provider_cooldown and time.time() < provider_cooldown[phone]:
+        remaining_m = int((provider_cooldown[phone] - time.time()) / 60)
+        remaining_s = int((provider_cooldown[phone] - time.time()) % 60)
+        send_msg(phone,
+            f"يمكنك استلام الطلب القادم بعد:\n"
+            f"{remaining_m} دقيقة و{remaining_s} ثانية ⏱️"
+        )
+        return
 
-    # البحث عن طلب مُرسل لهذا المقدم
+    # البحث عن طلب مرسل لهذا المقدم
     for oid, od in list(pending_orders.items()):
         if od.get("taken"):
             continue
         if od.get("current_provider") != phone:
             continue
-        if phone in od.get("blocked_providers", []):
-            continue
 
-        # أخذ الطلب
         cp = od["phone"]
         od["taken"] = True
-        od["blocked_providers"].append(phone)
+        od["blocked"].append(phone)
         provider_cooldown[phone] = time.time() + 5 * 60
 
         provider_name = registered_providers.get(phone, {}).get("name", "مقدم الخدمة")
 
-        # رسالة للعميل — مع بيانات مقدم الخدمة
+        # رسالة للعميل — بيانات مقدم الخدمة
         send_msg(cp,
-            f"ابشر به\n\n"
+            f"ابشر به 🎉\n\n"
             f"تم قبول طلبك رقم {oid}\n"
             f"المدينة: {od['city']}\n"
             f"الخدمة: {od['service']}\n\n"
@@ -646,7 +583,7 @@ def handle_provider_accept(phone):
             f"للتواصل: {phone}"
         )
 
-        # رسالة لمقدم الخدمة — تأكيد فقط
+        # رسالة لمقدم الخدمة
         send_msg(phone,
             f"تم تأكيد استلامك للطلب {oid} ✅\n"
             f"سيتواصل معك العميل قريباً"
@@ -657,17 +594,15 @@ def handle_provider_accept(phone):
             time.sleep(60)
             send_msg(cp,
                 "كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
-                "1 - ممتاز تم الاتفاق\n"
-                "2 - لم يتم الاتفاق (إعادة الطلب)\n"
+                "1 - ممتاز تم الاتفاق ✅\n"
+                "2 - لم يتم الاتفاق (إعادة)\n"
                 "3 - تواصل مع الإدارة"
             )
-
         threading.Thread(target=send_rating).start()
         user_sessions[cp] = {"step": "provider_sent", "order_id": oid}
         return
 
     send_msg(phone, "لا يوجد طلب متاح لك الآن ⏳")
-
 
 # ==========================================
 # إعادة الطلب
@@ -678,21 +613,22 @@ def resend_order(phone, oid, reason, price=None):
     od = pending_orders[oid]
     od["attempts"] += 1
     od["taken"]     = False
-    od["queue_index"] = 0
-    od["blocked_providers"].append(od.get("current_provider", ""))
+    if od.get("current_provider"):
+        od["blocked"].append(od["current_provider"])
+    od["queue_index"]      = 0
+    od["current_provider"] = None
     if price:
         od["last_price"] = price
 
     attempts = od["attempts"]
-    warning  = "\nتنبيه: هذه آخر محاولة" if attempts == 3 else ""
+    warning  = "\nتنبيه: هذه آخر محاولة ⚠️" if attempts == 3 else ""
     send_msg(phone,
         f"تم إعادة طلبك\n"
         f"المحاولة {attempts} من 3{warning}\n"
         f"سيتم التواصل معك خلال 5 دقائق"
     )
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
-    send_order_to_next_provider(oid)
-
+    send_to_next(oid)
 
 # ==========================================
 # سيناريو العميل
@@ -700,11 +636,17 @@ def resend_order(phone, oid, reason, price=None):
 def handle_customer(phone, msg):
     blocked, remaining = is_blocked(phone)
     if blocked:
-        send_msg(phone, f"حسابك موقوف مؤقتاً\nالمتبقي: {remaining} دقيقة")
+        send_msg(phone, f"حسابك موقوف مؤقتاً\nالمتبقي: {remaining} دقيقة ⏱️")
         return
 
-    session = user_sessions.get(phone, {"step": "start"})
-    step    = session.get("step", "start")
+    timed_out = check_timeout(phone)
+    if timed_out:
+        session = {"step": "start"}
+        user_sessions[phone] = session
+    else:
+        session = user_sessions.get(phone, {"step": "start"})
+
+    step = session.get("step", "start")
 
     if step == "start":
         menu_city(phone)
@@ -712,7 +654,7 @@ def handle_customer(phone, msg):
 
     elif step == "city":
         if msg not in CITIES:
-            send_msg(phone, "الرجاء ارسال رقم من 1 الى 10")
+            send_msg(phone, "الرجاء ارسال رقم من 1 الى 25")
             return
         city = CITIES[msg]
         user_sessions[phone] = {"step": "service", "city": city}
@@ -721,8 +663,8 @@ def handle_customer(phone, msg):
     elif step == "service":
         city = session.get("city")
         if msg == "13":
-            user_sessions[phone] = {"step": "admin", "city": city}
-            menu_admin(phone)
+            user_sessions[phone] = {"step": "admin_menu", "city": city}
+            menu_admin_options(phone)
         elif msg in SERVICES:
             service = SERVICES[msg]
             user_sessions[phone] = {"step": "description", "city": city, "service": service}
@@ -763,7 +705,7 @@ def handle_customer(phone, msg):
         else:
             client_terms(phone)
 
-    elif step == "admin":
+    elif step == "admin_menu":
         city = session.get("city")
         if msg == "1":
             provider_sessions[phone] = {"step": "terms"}
@@ -775,9 +717,9 @@ def handle_customer(phone, msg):
             user_sessions[phone] = {"step": "start"}
         elif msg == "3":
             user_sessions[phone] = {"step": "complaint"}
-            send_msg(phone, "اكتب شكواك:")
+            send_msg(phone, "اكتب شكواك وسيتم مراجعتها فوراً:")
         else:
-            menu_admin(phone)
+            menu_admin_options(phone)
 
     elif step == "complaint":
         send_group(ADMIN_GROUP, f"🚨 شكوى\nرقم العميل: {phone}\nالشكوى: {msg}")
@@ -793,17 +735,15 @@ def handle_customer(phone, msg):
 
         if msg == "1":
             send_msg(phone, "ممتاز! نتمنى لك تجربة رائعة مع مذكرة سلمان 🌟")
-            if oid in pending_orders:
-                del pending_orders[oid]
+            pending_orders.pop(oid, None)
             user_sessions[phone] = {"step": "start"}
 
         elif msg == "2":
             attempts = od.get("attempts", 1)
             if attempts >= 3:
                 blocked_users[phone] = time.time() + 15 * 60
-                send_msg(phone, "تم استنفاد المحاولات\nحسابك موقوف 15 دقيقة")
-                if oid in pending_orders:
-                    del pending_orders[oid]
+                send_msg(phone, "تم استنفاد المحاولات\nحسابك موقوف 15 دقيقة ⏱️")
+                pending_orders.pop(oid, None)
                 user_sessions[phone] = {"step": "start"}
             else:
                 user_sessions[phone] = {"step": "reason", "order_id": oid}
@@ -815,18 +755,15 @@ def handle_customer(phone, msg):
                 )
 
         elif msg == "3":
-            city = od.get("city", "")
             send_msg(phone, "نأسف لما تمر به\nسيتواصل معك فريق الإدارة قريباً 🙏")
             send_group(ADMIN_GROUP,
-                f"🚨 شكوى عميل\n"
-                f"رقم الطلب: {oid}\n"
-                f"رقم العميل: {phone}"
+                f"🚨 شكوى عميل\nرقم الطلب: {oid}\nرقم العميل: {phone}"
             )
             user_sessions[phone] = {"step": "start"}
         else:
             send_msg(phone,
                 "كيف كانت تجربتك؟\n\n"
-                "1 - ممتاز تم الاتفاق\n"
+                "1 - ممتاز تم الاتفاق ✅\n"
                 "2 - لم يتم الاتفاق\n"
                 "3 - تواصل مع الإدارة"
             )
@@ -845,34 +782,23 @@ def handle_customer(phone, msg):
             send_msg(phone, "1 - السعر مرتفع\n2 - لم يتجاوب\n3 - سبب آخر")
 
     elif step == "price":
-        oid = session.get("order_id")
-        resend_order(phone, oid, "السعر مرتفع", price=msg)
+        resend_order(phone, session.get("order_id"), "السعر مرتفع", price=msg)
 
     elif step == "custom_reason":
-        oid = session.get("order_id")
-        resend_order(phone, oid, msg)
-
+        resend_order(phone, session.get("order_id"), msg)
 
 # ==========================================
-# قروب التحكم
+# التحكم — رسالة خاصة من الأدمن
 # ==========================================
-def handle_control(sender, text):
-    sender_phone = sender.replace("@c.us", "").replace("+", "")
-    print(f"DEBUG control: sender={sender_phone}, admin={ADMIN_PHONE}, text={text}")
-
-    if sender_phone != ADMIN_PHONE:
-        print(f"DEBUG: sender {sender_phone} != admin {ADMIN_PHONE}")
-        return
-
+def handle_control(phone, msg):
     session = control_sessions.get("main", {"step": "start"})
     step    = session.get("step", "start")
-    msg     = text.strip()
-    print(f"DEBUG control step={step}, msg={msg}")
 
-    if step in ["start", ""]:
+    if msg == "تحكم" or step in ["start", ""]:
         control_sessions["main"] = {"step": "choose"}
-        send_group(CONTROL_GROUP,
-            "اختر:\n\n"
+        send_msg(phone,
+            "لوحة التحكم 🎮\n\n"
+            "اختر من تريد مراسلته:\n\n"
             "1  - الهندسية\n"
             "2  - العقارية\n"
             "3  - مقاولين\n"
@@ -885,42 +811,55 @@ def handle_control(sender, text):
             "10 - تبريد وتكييف\n"
             "11 - ورش وتشاليح\n"
             "12 - شاليهات\n"
-            "13 - حائل (كل الخدمات)\n"
-            "14 - الرياض (كل الخدمات)\n"
-            "15 - الجميع 📢"
+            "━━━━━━━━━━━━━━\n"
+            "13 - مدينة محددة\n"
+            "14 - الجميع 📢\n"
+            "0  - إلغاء ❌"
         )
+        return
 
-    elif step == "choose":
+    if msg == "0":
+        control_sessions["main"] = {"step": "start"}
+        send_msg(phone, "تم الإلغاء ✅")
+        return
+
+    if step == "choose":
         targets = []
         label   = ""
 
         if msg in SERVICES:
             label   = SERVICES[msg]
-            targets = [
-                p for p, d in registered_providers.items()
-                if d.get("specialty") == label
-            ]
+            targets = [p for p, d in registered_providers.items() if d.get("specialty") == label]
+
         elif msg == "13":
-            label   = "حائل"
-            targets = [
-                p for p, d in registered_providers.items()
-                if d.get("city") == "حائل"
-            ]
+            # اختيار مدينة محددة
+            control_sessions["main"] = {"step": "choose_city"}
+            send_msg(phone,
+                "اختر المدينة:\n\n" +
+                "\n".join([f"{k} - {v}" for k, v in CITIES.items()]) +
+                "\n\n0 - إلغاء"
+            )
+            return
+
         elif msg == "14":
-            label   = "الرياض"
-            targets = [
-                p for p, d in registered_providers.items()
-                if d.get("city") == "الرياض"
-            ]
-        elif msg == "15":
             label   = "الجميع"
             targets = list(registered_providers.keys())
+
         else:
-            send_group(CONTROL_GROUP, "الرجاء ارسال رقم من 1 الى 15")
+            send_msg(phone, "الرجاء ارسال رقم صحيح")
             return
 
         control_sessions["main"] = {"step": "write", "targets": targets, "label": label}
-        send_group(CONTROL_GROUP, f"اخترت: {label} ({len(targets)} مقدم)\n\nاكتب رسالتك:")
+        send_msg(phone, f"اخترت: {label} ({len(targets)} مقدم)\n\nاكتب رسالتك:\n(0 للإلغاء)")
+
+    elif step == "choose_city":
+        if msg not in CITIES:
+            send_msg(phone, "الرجاء ارسال رقم من 1 الى 25")
+            return
+        city    = CITIES[msg]
+        targets = [p for p, d in registered_providers.items() if d.get("city") == city]
+        control_sessions["main"] = {"step": "write", "targets": targets, "label": city}
+        send_msg(phone, f"اخترت: {city} ({len(targets)} مقدم)\n\nاكتب رسالتك:\n(0 للإلغاء)")
 
     elif step == "write":
         targets = session.get("targets", [])
@@ -930,9 +869,8 @@ def handle_control(sender, text):
             send_msg(p, msg)
             count += 1
             time.sleep(0.5)
-        send_group(CONTROL_GROUP, f"✅ تم الإرسال لـ {count} مقدم في {label}")
+        send_msg(phone, f"✅ تم الإرسال لـ {count} مقدم في {label}")
         control_sessions["main"] = {"step": "start"}
-
 
 # ==========================================
 # Webhook
@@ -940,26 +878,28 @@ def handle_control(sender, text):
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
-        data  = request.get_json()
+        data = request.get_json()
         if not data:
             return jsonify({"status": "ok"}), 200
 
-        wtype       = data.get("typeWebhook", "")
-        sd          = data.get("senderData", {})
-        md          = data.get("messageData", {})
-        sender      = sd.get("sender", "")
-        sender_name = sd.get("senderName", "مقدم الخدمة")
-        chat_id     = sd.get("chatId", "")
-        mt          = md.get("typeMessage", "")
+        wtype   = data.get("typeWebhook", "")
+        sd      = data.get("senderData", {})
+        md      = data.get("messageData", {})
+        sender  = sd.get("sender", "")
+        chat_id = sd.get("chatId", "")
+        mt      = md.get("typeMessage", "")
 
         if wtype != "incomingMessageReceived":
             return jsonify({"status": "ok"}), 200
 
+        # تجاهل القروبات
+        if "@g.us" in chat_id:
+            return jsonify({"status": "ok"}), 200
+
         # رسالة صوتية
         if mt in ["audioMessage", "pttMessage"]:
-            if "@g.us" not in chat_id:
-                phone = sender.replace("@c.us", "")
-                send_msg(phone, "عذراً 🎤\nالرجاء إرسال رسالة نصية فقط")
+            phone = sender.replace("@c.us", "")
+            send_msg(phone, "عذراً 🎤\nالرجاء إرسال رسالة نصية فقط")
             return jsonify({"status": "ok"}), 200
 
         # نص
@@ -973,50 +913,47 @@ def webhook():
         if not text:
             return jsonify({"status": "ok"}), 200
 
-        text = normalize_number(text)
-
-        # قروب التحكم
-        print(f"DEBUG webhook: chat_id={chat_id}, CONTROL_GROUP={CONTROL_GROUP}")
-        print(f"DEBUG: match={chat_id == CONTROL_GROUP}")
-
-        if "@g.us" in chat_id:
-            if chat_id == CONTROL_GROUP:
-                handle_control(sender, text)
-            else:
-                print(f"DEBUG: group mismatch - got {chat_id} expected {CONTROL_GROUP}")
-            return jsonify({"status": "ok"}), 200
-
-        # رسائل خاصة
+        text  = normalize(text)
         phone = sender.replace("@c.us", "")
 
+        # فلتر الأرقام السعودية
         if not phone.startswith("966"):
             send_msg(phone, "عذراً\nهذه الخدمة متاحة للأرقام السعودية فقط 🇸🇦")
             return jsonify({"status": "ok"}), 200
 
-        # 1. في جلسة تسجيل مقدم خدمة
+        # ✅ الأدمن أولاً
+        if phone == ADMIN_PHONE:
+            ctrl_session = control_sessions.get("main", {"step": "start"})
+            ctrl_step    = ctrl_session.get("step", "start")
+            if text == "تحكم" or ctrl_step not in ["start", ""]:
+                handle_control(phone, text)
+                return jsonify({"status": "ok"}), 200
+
+        # جلسة تسجيل مقدم خدمة
         if phone in provider_sessions:
             handle_provider_registration(phone, text)
             return jsonify({"status": "ok"}), 200
 
-        # 2. مقدم خدمة مسجل
+        # مقدم خدمة مسجل
         if phone in registered_providers:
             session = user_sessions.get(phone, {"step": "provider_main"})
             step    = session.get("step", "provider_main")
             customer_steps = [
-                "city", "service", "description", "terms",
-                "waiting", "provider_sent", "reason", "price",
-                "custom_reason", "admin", "complaint"
+                "city", "service", "description", "terms", "waiting",
+                "provider_sent", "reason", "price", "custom_reason",
+                "admin_menu", "complaint"
             ]
             if step in customer_steps:
                 handle_customer(phone, text)
-            elif text.strip() == "1":
+            elif text == "1":
                 handle_provider_accept(phone)
             else:
+                check_timeout(phone)
                 user_sessions[phone] = {"step": "provider_main"}
                 handle_provider_menu(phone, text, registered_providers[phone])
             return jsonify({"status": "ok"}), 200
 
-        # 3. عميل عادي
+        # عميل عادي
         handle_customer(phone, text)
 
     except Exception as e:
@@ -1029,7 +966,7 @@ def home():
     return "مذكرة سلمان - البوت شغال! ✅", 200
 
 
-# تحميل البيانات عند بدء التشغيل
+# تحميل البيانات عند البدء
 load_data()
 
 if __name__ == "__main__":
