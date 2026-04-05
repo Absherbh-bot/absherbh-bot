@@ -389,11 +389,13 @@ def handle_provider_menu(phone, msg, provider):
 # ==========================================
 # إنشاء الطلب وإرساله للمقدمين مباشرة
 # ==========================================
-def create_order(phone, city, service):
+def create_order(phone, city, service, description=""):
     order_counter[0] += 1
     oid = f"AB-{order_counter[0]}"
 
     # البحث عن مقدمي الخدمة المناسبين
+    print(f"DEBUG create_order: city={city}, service={service}")
+    print(f"DEBUG registered_providers: {registered_providers}")
     matched_providers = {
         p: d for p, d in registered_providers.items()
         if d.get("city") == city
@@ -401,16 +403,18 @@ def create_order(phone, city, service):
         and d.get("status") == "active"
         and check_subscription(d)
     }
+    print(f"DEBUG matched_providers: {matched_providers}")
 
     pending_orders[oid] = {
         "phone":             phone,
         "city":              city,
         "service":           service,
+        "description":       description,
         "attempts":          1,
         "blocked_providers": [],
         "taken":             False,
         "providers":         list(matched_providers.keys()),
-        "msg_ids":           {},  # { provider_phone: msg_id }
+        "msg_ids":           {},
     }
 
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
