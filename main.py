@@ -977,24 +977,41 @@ def webhook():
             return jsonify({"status": "ok"}), 200
 
         # توجيه الرسالة
+        print(f"DEBUG: phone={phone}, text={text}")
+
+        # 1. في جلسة تسجيل مقدم خدمة
         if phone in provider_sessions:
+            print(f"DEBUG: provider_session step={provider_sessions[phone].get('step')}")
             handle_provider_registration(phone, text)
-        elif phone in registered_providers:
-            # هل أرسل "1" لاستلام طلب؟
+            return jsonify({"status": "ok"}), 200
+
+        # 2. تحقق من الجلسة الحالية
+        session = user_sessions.get(phone, {"step": "start"})
+        step = session.get("step", "start")
+        print(f"DEBUG: session step={step}")
+
+        # 3. إذا كان في خطوة عميل — أرسله لـ handle_customer مباشرة
+        customer_steps = [
+            "start", "city", "service", "description", "terms",
+            "waiting", "provider_sent", "reason", "price",
+            "custom_reason", "admin", "complaint"
+        ]
+
+        if step in customer_steps:
+            handle_customer(phone, text)
+            return jsonify({"status": "ok"}), 200
+
+        # 4. مقدم خدمة مسجل — أرسل "1" لاستلام طلب
+        if phone in registered_providers:
             if text.strip() == "1":
                 handle_provider_accept(phone)
             else:
-                session = user_sessions.get(phone, {"step": "provider_main"})
-                step    = session.get("step", "provider_main")
-                if step in ["city", "service", "description", "terms", "waiting",
-                            "provider_sent", "reason", "price",
-                            "custom_reason", "admin", "complaint"]:
-                    handle_customer(phone, text)
-                else:
-                    user_sessions[phone] = {"step": "provider_main"}
-                    handle_provider_menu(phone, text, registered_providers[phone])
-        else:
-            handle_customer(phone, text)
+                user_sessions[phone] = {"step": "provider_main"}
+                handle_provider_menu(phone, text, registered_providers[phone])
+            return jsonify({"status": "ok"}), 200
+
+        # 5. شخص جديد — عميل
+        handle_customer(phone, text)
 
     except Exception as e:
         print(f"Webhook error: {e}")
