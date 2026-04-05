@@ -976,9 +976,14 @@ def webhook():
         text = normalize_number(text)
 
         # قروب التحكم
+        print(f"DEBUG webhook: chat_id={chat_id}, CONTROL_GROUP={CONTROL_GROUP}")
+        print(f"DEBUG: match={chat_id == CONTROL_GROUP}")
+
         if "@g.us" in chat_id:
             if chat_id == CONTROL_GROUP:
                 handle_control(sender, text)
+            else:
+                print(f"DEBUG: group mismatch - got {chat_id} expected {CONTROL_GROUP}")
             return jsonify({"status": "ok"}), 200
 
         # رسائل خاصة
