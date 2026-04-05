@@ -985,36 +985,32 @@ def webhook():
 
         # 1. في جلسة تسجيل مقدم خدمة
         if phone in provider_sessions:
-            print(f"DEBUG: provider_session step={provider_sessions[phone].get('step')}")
             handle_provider_registration(phone, text)
             return jsonify({"status": "ok"}), 200
 
-        # 2. تحقق من الجلسة الحالية
-        session = user_sessions.get(phone, {"step": "start"})
-        step = session.get("step", "start")
-        print(f"DEBUG: session step={step}")
-
-        # 3. إذا كان في خطوة عميل — أرسله لـ handle_customer مباشرة
-        customer_steps = [
-            "start", "city", "service", "description", "terms",
-            "waiting", "provider_sent", "reason", "price",
-            "custom_reason", "admin", "complaint"
-        ]
-
-        if step in customer_steps:
-            handle_customer(phone, text)
-            return jsonify({"status": "ok"}), 200
-
-        # 4. مقدم خدمة مسجل — أرسل "1" لاستلام طلب
+        # 2. مقدم خدمة مسجل
         if phone in registered_providers:
-            if text.strip() == "1":
+            session = user_sessions.get(phone, {"step": "provider_main"})
+            step = session.get("step", "provider_main")
+
+            # إذا كان في خطوة عميل
+            customer_steps = [
+                "city", "service", "description", "terms",
+                "waiting", "provider_sent", "reason", "price",
+                "custom_reason", "admin", "complaint"
+            ]
+            if step in customer_steps:
+                handle_customer(phone, text)
+            elif text.strip() == "1":
+                # أرسل 1 لاستلام طلب
                 handle_provider_accept(phone)
             else:
+                # قائمة مقدم الخدمة
                 user_sessions[phone] = {"step": "provider_main"}
                 handle_provider_menu(phone, text, registered_providers[phone])
             return jsonify({"status": "ok"}), 200
 
-        # 5. شخص جديد — عميل
+        # 3. عميل عادي أو جديد
         handle_customer(phone, text)
 
     except Exception as e:
