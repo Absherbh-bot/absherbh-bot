@@ -81,9 +81,11 @@ registered_clients   = set()
 registered_providers = {}
 pending_orders    = {}
 blocked_users     = {}
-provider_cooldown = {}  # { phone: until_timestamp } — 15 دقيقة بين كل طلب
+provider_cooldown = {}  # { phone: until_timestamp } — 5 دقائق بين كل طلب
 order_counter     = [1000]
 order_queue       = []  # طابور الطلبات
+last_activity     = {}  # { phone: timestamp } آخر نشاط للمستخدم
+SESSION_TIMEOUT   = 2 * 60  # دقيقتان بدون نشاط = إعادة البدء
 
 
 # ==========================================
@@ -161,6 +163,24 @@ def count_providers_by_service(service):
         if d.get("specialty") == service
         and d.get("status") == "active"
     )
+
+
+# ==========================================
+# نظام انتهاء الجلسة
+# ==========================================
+def check_session_timeout(phone):
+    """إذا مر دقيقتان بدون نشاط — إعادة البدء"""
+    if phone in last_activity:
+        if time.time() - last_activity[phone] > SESSION_TIMEOUT:
+            # انتهت الجلسة — إعادة البدء
+            if phone in user_sessions:
+                del user_sessions[phone]
+            if phone in provider_sessions:
+                del provider_sessions[phone]
+            last_activity[phone] = time.time()
+            return True
+    last_activity[phone] = time.time()
+    return False
 
 
 # ==========================================
@@ -400,8 +420,14 @@ def handle_provider_registration(phone, msg):
 # قائمة مقدم الخدمة
 # ==========================================
 def handle_provider_menu(phone, msg, provider):
-    session = user_sessions.get(phone, {"step": "provider_main"})
-    step    = session.get("step", "provider_main")
+    # فحص انتهاء الجلسة
+    timed_out = check_session_timeout(phone)
+    if timed_out:
+        session = {"step": "provider_main"}
+        user_sessions[phone] = session
+    else:
+        session = user_sessions.get(phone, {"step": "provider_main"})
+    step = session.get("step", "provider_main")
 
     if step == "provider_main":
         if msg == "1":
@@ -465,7 +491,7 @@ def create_order(phone, city, service, description=""):
     send_msg(phone,
         f"تم استلام طلبك ✅\n"
         f"رقم الطلب: {oid}\n\n"
-        f"سيتم التواصل معك خلال 15 دقيقة"
+        f"سيتم التواصل معك خلال 5 دقائق"
     )
 
     if not matched_providers:
@@ -535,7 +561,7 @@ def send_order_to_next_provider(oid):
 
         # جدولة انتقال الطلب للتالي بعد 15 دقيقة
         threading.Timer(
-            15 * 60,
+            5 * 60,
             check_order_timeout,
             args=[oid, p_phone]
         ).start()
@@ -606,7 +632,7 @@ def handle_provider_accept(phone):
         cp = od["phone"]
         od["taken"] = True
         od["blocked_providers"].append(phone)
-        provider_cooldown[phone] = time.time() + 15 * 60
+        provider_cooldown[phone] = time.time() + 5 * 60
 
         provider_name = registered_providers.get(phone, {}).get("name", "مقدم الخدمة")
 
@@ -662,7 +688,7 @@ def resend_order(phone, oid, reason, price=None):
     send_msg(phone,
         f"تم إعادة طلبك\n"
         f"المحاولة {attempts} من 3{warning}\n"
-        f"سيتم التواصل معك خلال 15 دقيقة"
+        f"سيتم التواصل معك خلال 5 دقائق"
     )
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
     send_order_to_next_provider(oid)
@@ -759,7 +785,7 @@ def handle_customer(phone, msg):
         user_sessions[phone] = {"step": "start"}
 
     elif step == "waiting":
-        send_msg(phone, "طلبك قيد المعالجة ⏳\nسيتم التواصل معك خلال 15 دقيقة")
+        send_msg(phone, "طلبك قيد المعالجة ⏳\nسيتم التواصل معك خلال 5 دقائق")
 
     elif step == "provider_sent":
         oid = session.get("order_id")
