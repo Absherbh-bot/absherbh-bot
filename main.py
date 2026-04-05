@@ -801,21 +801,21 @@ def handle_provider_accept(phone):
 
         provider_name = provider.get("name", "مقدم الخدمة")
 
-        # رسالة للعميل - بدون رقم مقدم الخدمة
+        # رسالة للعميل - مع بيانات مقدم الخدمة ✅
+        provider_name = registered_providers.get(phone, {}).get("name", "مقدم الخدمة")
         send_msg(cp,
             f"ابشر به\n\n"
             f"تم قبول طلبك رقم {oid}\n"
             f"المدينة: {od['city']}\n"
             f"الخدمة: {od['service']}\n\n"
-            f"سيتواصل معك مقدم الخدمة قريباً 📞"
+            f"مقدم الخدمة: {provider_name}\n"
+            f"للتواصل: {phone}"
         )
 
-        # رسالة لمقدم الخدمة - مع رقم العميل
+        # رسالة لمقدم الخدمة - تأكيد فقط
         send_msg(phone,
-            f"تم تأكيد استلامك للطلب {oid} ✅\n\n"
-            f"تواصل مع العميل:\n"
-            f"الرقم: {cp}\n"
-            f"الوصف: {od.get('description', 'لا يوجد وصف')}"
+            f"تم تأكيد استلامك للطلب {oid} ✅\n"
+            f"سيتواصل معك العميل قريباً"
         )
 
         # تقييم بعد دقيقة
