@@ -986,7 +986,7 @@ def webhook():
             else:
                 session = user_sessions.get(phone, {"step": "provider_main"})
                 step    = session.get("step", "provider_main")
-                if step in ["city", "service", "terms", "waiting",
+                if step in ["city", "service", "description", "terms", "waiting",
                             "provider_sent", "reason", "price",
                             "custom_reason", "admin", "complaint"]:
                     handle_customer(phone, text)
@@ -1006,9 +1006,9 @@ def home():
     return "مذكرة سلمان - البوت شغال! ✅", 200
 
 
+# تحميل البيانات عند بدء التشغيل
+load_data()
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
-# تحميل البيانات عند بدء التشغيل
-load_data()
