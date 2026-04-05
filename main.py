@@ -8,6 +8,14 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+def normalize_number(text):
+    """تحويل الأرقام العربية والهندية للإنجليزية"""
+    arabic = '٠١٢٣٤٥٦٧٨٩'
+    english = '0123456789'
+    for a, e in zip(arabic, english):
+        text = text.replace(a, e)
+    return text.strip()
+
 # ==========================================
 # إعدادات Green API
 # ==========================================
@@ -499,10 +507,9 @@ def resend_order(phone, oid, reason, price=None):
         f"{price_line}"
         f"سبب الإعادة: {reason}\n"
         f"━━━━━━━━━━━━━━\n"
-        f"لاستلام الطلب تفاعل مع هذه الرسالة\n"
-        f"اضغط مطولاً واختر أي تفاعل\n\n"
-        f"To accept, react to this message\n\n"
-        f"آرڈر لینے کے لیے اس میسج پر ری ایکشن دیں\n"
+        f"لاستلام الطلب أرسل: 1\n\n"
+        f"To accept send: 1\n\n"
+        f"آرڈر لینے کے لیے بھیجیں: 1\n"
         f"━━━━━━━━━━━━━━"
     )
 
@@ -739,6 +746,79 @@ def handle_control(sender, text):
 
 
 # ==========================================
+# استلام الطلب من مقدم الخدمة
+# ==========================================
+def handle_provider_accept(phone):
+    """مقدم الخدمة يرسل 1 لاستلام الطلب"""
+
+    # فحص cooldown
+    if phone in provider_cooldown:
+        until = provider_cooldown[phone]
+        if time.time() < until:
+            remaining_m = int((until - time.time()) / 60)
+            remaining_s = int((until - time.time()) % 60)
+            send_msg(phone,
+                f"يمكنك استقبال الطلب القادم بعد:\n"
+                f"{remaining_m} دقيقة و{remaining_s} ثانية ⏱️"
+            )
+            return
+        del provider_cooldown[phone]
+
+    # البحث عن طلب مناسب
+    provider = registered_providers.get(phone, {})
+    city     = provider.get("city", "")
+    specialty = provider.get("specialty", "")
+
+    for oid, od in list(pending_orders.items()):
+        if od.get("taken"):
+            continue
+        if phone in od.get("blocked_providers", []):
+            continue
+        if od.get("city") != city or od.get("service") != specialty:
+            continue
+
+        # أخذ الطلب
+        cp = od["phone"]
+        od["blocked_providers"].append(phone)
+        od["taken"] = True
+        provider_cooldown[phone] = time.time() + 10 * 60
+
+        provider_name = provider.get("name", "مقدم الخدمة")
+
+        # رسالة للعميل
+        send_msg(cp,
+            f"ابشر به\n\n"
+            f"تم قبول طلبك رقم {oid}\n"
+            f"المدينة: {od['city']}\n"
+            f"الخدمة: {od['service']}\n\n"
+            f"مقدم الخدمة: {provider_name}\n"
+            f"للتواصل: {phone}"
+        )
+
+        # رسالة لمقدم الخدمة
+        send_msg(phone,
+            f"تم تأكيد استلامك للطلب {oid} ✅\n"
+            f"تواصل مع العميل: {cp}"
+        )
+
+        # تقييم بعد دقيقة
+        def send_rating(cp=cp):
+            time.sleep(60)
+            send_msg(cp,
+                "كيف كانت تجربتك مع مقدم الخدمة?\n\n"
+                "1 - ممتاز تم الاتفاق\n"
+                "2 - لم يتم الاتفاق (إعادة الطلب)\n"
+                "3 - تواصل مع الإدارة"
+            )
+
+        threading.Thread(target=send_rating).start()
+        user_sessions[cp] = {"step": "provider_sent", "order_id": oid}
+        return
+
+    send_msg(phone, "لا يوجد طلب متاح في تخصصك الآن ⏳")
+
+
+# ==========================================
 # معالجة التفاعل من مقدم الخدمة
 # ==========================================
 def handle_reaction(sender, sender_name, quoted_msg_id):
@@ -861,6 +941,9 @@ def webhook():
         if not text:
             return jsonify({"status": "ok"}), 200
 
+        # تحويل الأرقام العربية للإنجليزية
+        text = normalize_number(text)
+
         # قروب التحكم
         if "@g.us" in chat_id:
             if chat_id == CONTROL_GROUP:
@@ -878,15 +961,19 @@ def webhook():
         if phone in provider_sessions:
             handle_provider_registration(phone, text)
         elif phone in registered_providers:
-            session = user_sessions.get(phone, {"step": "provider_main"})
-            step    = session.get("step", "provider_main")
-            if step in ["city", "service", "terms", "waiting",
-                        "provider_sent", "reason", "price",
-                        "custom_reason", "admin", "complaint"]:
-                handle_customer(phone, text)
+            # هل أرسل "1" لاستلام طلب؟
+            if text.strip() == "1":
+                handle_provider_accept(phone)
             else:
-                user_sessions[phone] = {"step": "provider_main"}
-                handle_provider_menu(phone, text, registered_providers[phone])
+                session = user_sessions.get(phone, {"step": "provider_main"})
+                step    = session.get("step", "provider_main")
+                if step in ["city", "service", "terms", "waiting",
+                            "provider_sent", "reason", "price",
+                            "custom_reason", "admin", "complaint"]:
+                    handle_customer(phone, text)
+                else:
+                    user_sessions[phone] = {"step": "provider_main"}
+                    handle_provider_menu(phone, text, registered_providers[phone])
         else:
             handle_customer(phone, text)
 
