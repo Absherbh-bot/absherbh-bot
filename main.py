@@ -558,21 +558,31 @@ def handle_customer(phone, msg):
             menu_admin(phone)
         elif msg in SERVICES:
             service = SERVICES[msg]
-            if phone not in registered_clients:
-                user_sessions[phone] = {"step": "terms", "city": city, "service": service}
-                client_terms(phone)
-            else:
-                create_order(phone, city, service)
+            user_sessions[phone] = {"step": "description", "city": city, "service": service}
+            send_msg(phone,
+            f"اخترت: {service} في {city}\n\n"
+                "اكتب وصفاً قصيراً عن طلبك:\n"
+                "(مثال: أحتاج سباك لإصلاح تسرب مياه في المطبخ)"
+            )
+
+    elif step == "description":
+        city        = session.get("city")
+        service     = session.get("service")
+        description = msg
+        if phone not in registered_clients:
+            user_sessions[phone] = {"step": "terms", "city": city, "service": service, "description": description}
+            client_terms(phone)
         else:
-            send_msg(phone, "الرجاء ارسال رقم من 1 الى 13")
+            create_order(phone, city, service, description)
 
     elif step == "terms":
-        city    = session.get("city")
-        service = session.get("service")
+        city        = session.get("city")
+        service     = session.get("service")
+        description = session.get("description", "")
         if msg == "1":
             registered_clients.add(phone)
             save_clients()
-            create_order(phone, city, service)
+            create_order(phone, city, service, description)
         elif msg == "2":
             send_msg(phone, "شكراً لك\nنتمنى خدمتك في وقت آخر 🌟")
             user_sessions[phone] = {"step": "start"}
@@ -785,20 +795,21 @@ def handle_provider_accept(phone):
 
         provider_name = provider.get("name", "مقدم الخدمة")
 
-        # رسالة للعميل
+        # رسالة للعميل - بدون رقم مقدم الخدمة
         send_msg(cp,
             f"ابشر به\n\n"
             f"تم قبول طلبك رقم {oid}\n"
             f"المدينة: {od['city']}\n"
             f"الخدمة: {od['service']}\n\n"
-            f"مقدم الخدمة: {provider_name}\n"
-            f"للتواصل: {phone}"
+            f"سيتواصل معك مقدم الخدمة قريباً 📞"
         )
 
-        # رسالة لمقدم الخدمة
+        # رسالة لمقدم الخدمة - مع رقم العميل
         send_msg(phone,
-            f"تم تأكيد استلامك للطلب {oid} ✅\n"
-            f"تواصل مع العميل: {cp}"
+            f"تم تأكيد استلامك للطلب {oid} ✅\n\n"
+            f"تواصل مع العميل:\n"
+            f"الرقم: {cp}\n"
+            f"الوصف: {od.get('description', 'لا يوجد وصف')}"
         )
 
         # تقييم بعد دقيقة
@@ -935,6 +946,12 @@ def webhook():
             text = md.get("textMessageData", {}).get("textMessage", "")
         elif mt == "extendedTextMessage":
             text = md.get("extendedTextMessageData", {}).get("text", "")
+        elif mt in ["audioMessage", "pttMessage"]:
+            # رسالة صوتية
+            phone = sender.replace("@c.us", "")
+            if not "@g.us" in chat_id:
+                send_msg(phone, "عذراً 🎤\nالرجاء إرسال رسالة نصية فقط")
+            return jsonify({"status": "ok"}), 200
         else:
             text = ""
 
