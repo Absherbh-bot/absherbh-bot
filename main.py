@@ -437,17 +437,17 @@ def create_order(phone, city, service):
         return
 
     # إرسال رسالة لكل مقدم خدمة مباشرة
+    desc_line = f"الوصف: {description}\n" if description else ""
     msg_text = (
         f"طلب جديد 🔔\n"
         f"رقم الطلب: {oid}\n"
         f"المدينة: {city}\n"
         f"الخدمة: {service}\n"
+        f"{desc_line}"
         f"━━━━━━━━━━━━━━\n"
-        f"لاستلام الطلب تفاعل مع هذه الرسالة\n"
-        f"اضغط مطولاً واختر أي تفاعل\n\n"
-        f"To accept, react to this message\n"
-        f"Press and hold then select any reaction\n\n"
-        f"آرڈر لینے کے لیے اس میسج پر ری ایکشن دیں\n"
+        f"لاستلام الطلب أرسل: 1\n\n"
+        f"To accept send: 1\n\n"
+        f"آرڈر لینے کے لیے بھیجیں: 1\n"
         f"━━━━━━━━━━━━━━"
     )
 
@@ -560,10 +560,12 @@ def handle_customer(phone, msg):
             service = SERVICES[msg]
             user_sessions[phone] = {"step": "description", "city": city, "service": service}
             send_msg(phone,
-            f"اخترت: {service} في {city}\n\n"
+                f"اخترت: {service} في {city}\n\n"
                 "اكتب وصفاً قصيراً عن طلبك:\n"
                 "(مثال: أحتاج سباك لإصلاح تسرب مياه في المطبخ)"
             )
+        else:
+            send_msg(phone, "الرجاء ارسال رقم من 1 الى 13")
 
     elif step == "description":
         city        = session.get("city")
