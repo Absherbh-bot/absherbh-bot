@@ -32,16 +32,16 @@ ADMIN_GROUP  = "120363411052676048@g.us"
 # المدن
 # ==========================================
 CITIES = {
-    "1":  "الرياض",
-    "2":  "جدة",
-    "3":  "مكة المكرمة",
-    "4":  "المدينة المنورة",
-    "5":  "الدمام",
-    "6":  "الخبر",
-    "7":  "الأحساء",
-    "8":  "تبوك",
-    "9":  "أبها",
-    "10": "حائل",
+    "1":  "حائل",
+    "2":  "الرياض",
+    "3":  "جدة",
+    "4":  "مكة المكرمة",
+    "5":  "المدينة المنورة",
+    "6":  "الدمام",
+    "7":  "الخبر",
+    "8":  "الأحساء",
+    "9":  "تبوك",
+    "10": "أبها",
     "11": "القصيم",
     "12": "خميس مشيط",
     "13": "الطائف",
@@ -202,16 +202,23 @@ def menu_city(phone):
     send_msg(phone,
         "اهلا بك في مذكرة سلمان 🌟\n\n"
         "اختر مدينتك:\n\n"
-        "1  - الرياض\n"
-        "2  - جدة\n"
-        "3  - مكة المكرمة\n"
-        "4  - المدينة المنورة\n"
-        "5  - الدمام\n"
-        "6  - الخبر\n"
-        "7  - الأحساء\n"
-        "8  - تبوك\n"
-        "9  - أبها\n"
-        "10 - حائل\n"
+        "1 - حائل\n"
+        "2 - الرياض\n"
+        "3 - مدن أخرى 🗺️\n\n"
+        "ارسل رقم مدينتك"
+    )
+
+def menu_city_more(phone):
+    send_msg(phone,
+        "اختر مدينتك:\n\n"
+        "3  - جدة\n"
+        "4  - مكة المكرمة\n"
+        "5  - المدينة المنورة\n"
+        "6  - الدمام\n"
+        "7  - الخبر\n"
+        "8  - الأحساء\n"
+        "9  - تبوك\n"
+        "10 - أبها\n"
         "11 - القصيم\n"
         "12 - خميس مشيط\n"
         "13 - الطائف\n"
@@ -339,8 +346,34 @@ def handle_provider_registration(phone, msg):
         menu_city(phone)
 
     elif step == "city":
-        if msg not in CITIES:
-            send_msg(phone, "الرجاء ارسال رقم من 1 الى 25")
+        if msg == "3":
+            provider_sessions[phone].update({"step": "city_more"})
+            menu_city_more(phone)
+            return
+        if msg not in ["1", "2"]:
+            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3")
+            return
+        provider_sessions[phone].update({"step": "specialty", "city": CITIES[msg]})
+        send_msg(phone,
+            "اختر تخصصك:\n\n"
+            "1  - الهندسية\n"
+            "2  - العقارية\n"
+            "3  - مقاولين\n"
+            "4  - الطلابية\n"
+            "5  - المحامين\n"
+            "6  - مناديب توصيل\n"
+            "7  - صهريج مياه\n"
+            "8  - اسطوانات غاز\n"
+            "9  - سطحات\n"
+            "10 - تبريد وتكييف\n"
+            "11 - ورش وتشاليح\n"
+            "12 - شاليهات\n\n"
+            "ارسل رقم تخصصك"
+        )
+
+    elif step == "city_more":
+        if msg not in CITIES or msg in ["1", "2"]:
+            send_msg(phone, "الرجاء ارسال رقم من 3 الى 25")
             return
         provider_sessions[phone].update({"step": "specialty", "city": CITIES[msg]})
         send_msg(phone,
@@ -654,8 +687,20 @@ def handle_customer(phone, msg):
         user_sessions[phone] = {"step": "city"}
 
     elif step == "city":
-        if msg not in CITIES:
-            send_msg(phone, "الرجاء ارسال رقم من 1 الى 25")
+        if msg == "3":
+            user_sessions[phone] = {"step": "city_more"}
+            menu_city_more(phone)
+            return
+        if msg not in ["1", "2"]:
+            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3")
+            return
+        city = CITIES[msg]
+        user_sessions[phone] = {"step": "service", "city": city}
+        menu_service(phone, city)
+
+    elif step == "city_more":
+        if msg not in CITIES or msg in ["1", "2"]:
+            send_msg(phone, "الرجاء ارسال رقم من 3 الى 25")
             return
         city = CITIES[msg]
         user_sessions[phone] = {"step": "service", "city": city}
