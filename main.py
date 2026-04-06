@@ -891,10 +891,8 @@ def handle_control(phone, msg):
         )
         return
 
-    if msg == "0":
-        control_sessions["main"] = {"step": "start"}
-        send_msg(phone, "تم الإلغاء ✅")
-        return
+    # 0 يُعالج داخل كل step لوحده
+    
 
     # ─── القائمة الرئيسية ───
     if step == "main_menu":
@@ -939,6 +937,16 @@ def handle_control(phone, msg):
 
     # ─── رسالة جماعية للعملاء ───
     if step == "write_clients":
+        if msg == "0":
+            control_sessions["main"] = {"step": "main_menu"}
+            send_msg(phone,
+                "لوحة التحكم 🎮\n\n"
+                "1 - رسالة جماعية للمقدمين 📢\n"
+                "2 - رسالة جماعية للعملاء 👥\n"
+                "3 - إدارة مقدمي الخدمة ⚙️\n"
+                "0 - إلغاء ❌"
+            )
+            return
         targets = list(registered_clients)
         count   = 0
         for c in targets:
@@ -995,6 +1003,17 @@ def handle_control(phone, msg):
         return
 
     if step == "provider_action":
+        if msg == "0":
+            control_sessions["main"] = {"step": "manage_providers"}
+            send_msg(phone,
+                "إدارة مقدمي الخدمة ⚙️\n\n"
+                "1 - عرض قائمة المقدمين\n"
+                "2 - إيقاف مقدم\n"
+                "3 - تفعيل مقدم\n"
+                "4 - حذف مقدم\n"
+                "0 - رجوع ↩️"
+            )
+            return
         action = session.get("action")
         target = msg.strip()
         if target not in registered_providers:
@@ -1016,7 +1035,15 @@ def handle_control(phone, msg):
             save_providers()
             send_msg(phone, f"✅ تم حذف {name}")
             send_msg(target, "تم حذف حسابك من المنصة\nللاستفسار تواصل مع الإدارة")
-        control_sessions["main"] = {"step": "start"}
+        control_sessions["main"] = {"step": "manage_providers"}
+        send_msg(phone,
+            "إدارة مقدمي الخدمة ⚙️\n\n"
+            "1 - عرض قائمة المقدمين\n"
+            "2 - إيقاف مقدم\n"
+            "3 - تفعيل مقدم\n"
+            "4 - حذف مقدم\n"
+            "0 - رجوع ↩️"
+        )
         return
 
     # ─── رسالة جماعية للمقدمين ───
@@ -1041,6 +1068,16 @@ def handle_control(phone, msg):
             label   = "الجميع"
             targets = list(registered_providers.keys())
 
+        elif msg == "0":
+            control_sessions["main"] = {"step": "main_menu"}
+            send_msg(phone,
+                "لوحة التحكم 🎮\n\n"
+                "1 - رسالة جماعية للمقدمين 📢\n"
+                "2 - رسالة جماعية للعملاء 👥\n"
+                "3 - إدارة مقدمي الخدمة ⚙️\n"
+                "0 - إلغاء ❌"
+            )
+            return
         else:
             send_msg(phone, "الرجاء ارسال رقم صحيح")
             return
@@ -1049,6 +1086,28 @@ def handle_control(phone, msg):
         send_msg(phone, f"اخترت: {label} ({len(targets)} مقدم)\n\nاكتب رسالتك:\n(0 للإلغاء)")
 
     elif step == "choose_city":
+        if msg == "0":
+            control_sessions["main"] = {"step": "choose"}
+            send_msg(phone,
+                "اختر المقدمين المستهدفين:\n\n"
+                "1  - الهندسية\n"
+                "2  - العقارية\n"
+                "3  - مقاولين\n"
+                "4  - الطلابية\n"
+                "5  - المحامين\n"
+                "6  - مناديب توصيل\n"
+                "7  - صهريج مياه\n"
+                "8  - اسطوانات غاز\n"
+                "9  - سطحات\n"
+                "10 - تبريد وتكييف\n"
+                "11 - ورش وتشاليح\n"
+                "12 - شاليهات\n"
+                "━━━━━━━━━━━━━━\n"
+                "13 - مدينة محددة\n"
+                "14 - الجميع 📢\n"
+                "0  - رجوع ↩️"
+            )
+            return
         if msg not in CITIES:
             send_msg(phone, "الرجاء ارسال رقم من 1 الى 25")
             return
@@ -1058,6 +1117,28 @@ def handle_control(phone, msg):
         send_msg(phone, f"اخترت: {city} ({len(targets)} مقدم)\n\nاكتب رسالتك:\n(0 للإلغاء)")
 
     elif step == "write":
+        if msg == "0":
+            control_sessions["main"] = {"step": "choose"}
+            send_msg(phone,
+                "اختر المقدمين المستهدفين:\n\n"
+                "1  - الهندسية\n"
+                "2  - العقارية\n"
+                "3  - مقاولين\n"
+                "4  - الطلابية\n"
+                "5  - المحامين\n"
+                "6  - مناديب توصيل\n"
+                "7  - صهريج مياه\n"
+                "8  - اسطوانات غاز\n"
+                "9  - سطحات\n"
+                "10 - تبريد وتكييف\n"
+                "11 - ورش وتشاليح\n"
+                "12 - شاليهات\n"
+                "━━━━━━━━━━━━━━\n"
+                "13 - مدينة محددة\n"
+                "14 - الجميع 📢\n"
+                "0  - رجوع ↩️"
+            )
+            return
         targets = session.get("targets", [])
         label   = session.get("label", "")
         count   = 0
