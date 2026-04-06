@@ -946,11 +946,11 @@ def handle_customer(phone, msg):
 # التحكم — رسالة خاصة من الأدمن
 # ==========================================
 def handle_control(phone, msg):
-    session = control_sessions.get("main", {"step": "start"})
+    session = control_sessions.get(phone, {"step": "start"})
     step    = session.get("step", "start")
 
     if msg == "تحكم" or step in ["start", ""]:
-        control_sessions["main"] = {"step": "main_menu"}
+        control_sessions[phone] = {"step": "main_menu"}
         send_msg(phone,
             "لوحة التحكم 🎮\n\n"
             "1 - رسالة جماعية للمقدمين 📢\n"
@@ -966,7 +966,7 @@ def handle_control(phone, msg):
     # ─── القائمة الرئيسية ───
     if step == "main_menu":
         if msg == "1":
-            control_sessions["main"] = {"step": "choose"}
+            control_sessions[phone] = {"step": "choose"}
             send_msg(phone,
                 "اختر المقدمين المستهدفين:\n\n"
                 "1  - الهندسية\n"
@@ -988,10 +988,10 @@ def handle_control(phone, msg):
             )
         elif msg == "2":
             count = len(registered_clients)
-            control_sessions["main"] = {"step": "write_clients"}
+            control_sessions[phone] = {"step": "write_clients"}
             send_msg(phone, f"عدد العملاء المسجلين: {count}\n\nاكتب رسالتك:\n(0 للإلغاء)")
         elif msg == "3":
-            control_sessions["main"] = {"step": "manage_providers"}
+            control_sessions[phone] = {"step": "manage_providers"}
             send_msg(phone,
                 "إدارة مقدمي الخدمة ⚙️\n\n"
                 "1 - عرض قائمة المقدمين\n"
@@ -1007,7 +1007,7 @@ def handle_control(phone, msg):
     # ─── رسالة جماعية للعملاء ───
     if step == "write_clients":
         if msg == "0":
-            control_sessions["main"] = {"step": "main_menu"}
+            control_sessions[phone] = {"step": "main_menu"}
             send_msg(phone,
                 "لوحة التحكم 🎮\n\n"
                 "1 - رسالة جماعية للمقدمين 📢\n"
@@ -1023,7 +1023,7 @@ def handle_control(phone, msg):
             count += 1
             time.sleep(0.5)
         send_msg(phone, f"✅ تم الإرسال لـ {count} عميل")
-        control_sessions["main"] = {"step": "start"}
+        control_sessions[phone] = {"step": "start"}
         return
 
     # ─── إدارة المقدمين ───
@@ -1031,7 +1031,7 @@ def handle_control(phone, msg):
         if msg == "1":
             if not registered_providers:
                 send_msg(phone, "لا يوجد مقدمو خدمة مسجلون")
-                control_sessions["main"] = {"step": "start"}
+                control_sessions[phone] = {"step": "start"}
                 return
             lines = []
             for p, d in registered_providers.items():
@@ -1047,11 +1047,11 @@ def handle_control(phone, msg):
                 chunk += line + "\n"
             if chunk:
                 send_msg(phone, chunk)
-            control_sessions["main"] = {"step": "start"}
+            control_sessions[phone] = {"step": "start"}
 
         elif msg in ["2", "3", "4"]:
             action_map = {"2": "إيقاف", "3": "تفعيل", "4": "حذف"}
-            control_sessions["main"] = {"step": "provider_action", "action": msg}
+            control_sessions[phone] = {"step": "provider_action", "action": msg}
             send_msg(phone,
                 f"أدخل رقم جوال المقدم الذي تريد {action_map[msg]}ه:\n"
                 "(بدون + مثال: 966501234567)\n\n"
@@ -1059,7 +1059,7 @@ def handle_control(phone, msg):
             )
 
         elif msg == "0":
-            control_sessions["main"] = {"step": "main_menu"}
+            control_sessions[phone] = {"step": "main_menu"}
             send_msg(phone,
                 "لوحة التحكم 🎮\n\n"
                 "1 - رسالة جماعية للمقدمين 📢\n"
@@ -1073,7 +1073,7 @@ def handle_control(phone, msg):
 
     if step == "provider_action":
         if msg == "0":
-            control_sessions["main"] = {"step": "manage_providers"}
+            control_sessions[phone] = {"step": "manage_providers"}
             send_msg(phone,
                 "إدارة مقدمي الخدمة ⚙️\n\n"
                 "1 - عرض قائمة المقدمين\n"
@@ -1104,7 +1104,7 @@ def handle_control(phone, msg):
             save_providers()
             send_msg(phone, f"✅ تم حذف {name}")
             send_msg(target, "تم حذف حسابك من المنصة\nللاستفسار تواصل مع الإدارة")
-        control_sessions["main"] = {"step": "manage_providers"}
+        control_sessions[phone] = {"step": "manage_providers"}
         send_msg(phone,
             "إدارة مقدمي الخدمة ⚙️\n\n"
             "1 - عرض قائمة المقدمين\n"
@@ -1125,7 +1125,7 @@ def handle_control(phone, msg):
             targets = [p for p, d in registered_providers.items() if d.get("specialty") == label]
 
         elif msg == "13":
-            control_sessions["main"] = {"step": "choose_city"}
+            control_sessions[phone] = {"step": "choose_city"}
             send_msg(phone,
                 "اختر المدينة:\n\n" +
                 "\n".join([f"{k} - {v}" for k, v in CITIES.items()]) +
@@ -1138,7 +1138,7 @@ def handle_control(phone, msg):
             targets = list(registered_providers.keys())
 
         elif msg == "0":
-            control_sessions["main"] = {"step": "main_menu"}
+            control_sessions[phone] = {"step": "main_menu"}
             send_msg(phone,
                 "لوحة التحكم 🎮\n\n"
                 "1 - رسالة جماعية للمقدمين 📢\n"
@@ -1151,12 +1151,12 @@ def handle_control(phone, msg):
             send_msg(phone, "الرجاء ارسال رقم صحيح")
             return
 
-        control_sessions["main"] = {"step": "write", "targets": targets, "label": label}
+        control_sessions[phone] = {"step": "write", "targets": targets, "label": label}
         send_msg(phone, f"اخترت: {label} ({len(targets)} مقدم)\n\nاكتب رسالتك:\n(0 للإلغاء)")
 
     elif step == "choose_city":
         if msg == "0":
-            control_sessions["main"] = {"step": "choose"}
+            control_sessions[phone] = {"step": "choose"}
             send_msg(phone,
                 "اختر المقدمين المستهدفين:\n\n"
                 "1  - الهندسية\n"
@@ -1182,12 +1182,12 @@ def handle_control(phone, msg):
             return
         city    = CITIES[msg]
         targets = [p for p, d in registered_providers.items() if d.get("city") == city]
-        control_sessions["main"] = {"step": "write", "targets": targets, "label": city}
+        control_sessions[phone] = {"step": "write", "targets": targets, "label": city}
         send_msg(phone, f"اخترت: {city} ({len(targets)} مقدم)\n\nاكتب رسالتك:\n(0 للإلغاء)")
 
     elif step == "write":
         if msg == "0":
-            control_sessions["main"] = {"step": "choose"}
+            control_sessions[phone] = {"step": "choose"}
             send_msg(phone,
                 "اختر المقدمين المستهدفين:\n\n"
                 "1  - الهندسية\n"
@@ -1216,7 +1216,7 @@ def handle_control(phone, msg):
             count += 1
             time.sleep(0.5)
         send_msg(phone, f"✅ تم الإرسال لـ {count} مقدم في {label}")
-        control_sessions["main"] = {"step": "start"}
+        control_sessions[phone] = {"step": "start"}
 
 # ==========================================
 # Webhook
@@ -1249,13 +1249,14 @@ def webhook():
                     return jsonify({"status": "ok"}), 200
                 if not text:
                     return jsonify({"status": "ok"}), 200
-                text   = normalize(text)
+                text         = normalize(text)
                 sender_phone = sender.replace("@c.us", "")
                 print(f"📩 قروب تحكم | من: {sender_phone} | النص: {text}")
-                ctrl_session = control_sessions.get("main", {"step": "start"})
+                # البوت يرد على المرسل مباشرة برسالة خاصة
+                ctrl_session = control_sessions.get(sender_phone, {"step": "start"})
                 ctrl_step    = ctrl_session.get("step", "start")
                 if text == "تحكم" or ctrl_step not in ["start", ""]:
-                    handle_control(CONTROL_GROUP, text)
+                    handle_control(sender_phone, text)
             return jsonify({"status": "ok"}), 200
 
         # رسالة صوتية
