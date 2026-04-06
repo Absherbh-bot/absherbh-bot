@@ -12,6 +12,7 @@ app = Flask(__name__)
 # تحويل الأرقام العربية للإنجليزية
 # ==========================================
 def normalize(text):
+    """تحويل الأرقام العربية فقط — لا يمس النصوص"""
     arabic = '٠١٢٣٤٥٦٧٨٩'
     for i, a in enumerate(arabic):
         text = text.replace(a, str(i))
