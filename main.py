@@ -1261,6 +1261,9 @@ def webhook():
         text  = normalize(text)
         phone = sender.replace("@c.us", "")
 
+        # DEBUG — اطبع كل رسالة واردة
+        print(f"📩 رسالة من: [{phone}] | ADMIN_PHONE: [{ADMIN_PHONE}] | تطابق: {phone == ADMIN_PHONE} | النص: {text}")
+
         # فلتر الأرقام السعودية
         if not phone.startswith("966"):
             send_msg(phone, "عذراً\nهذه الخدمة متاحة للأرقام السعودية فقط 🇸🇦")
