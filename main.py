@@ -26,7 +26,8 @@ API_TOKEN    = os.environ.get("API_TOKEN", "503485c7be7c41aa9ae7737ea65750bd7b2e
 BASE_URL     = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
 ADMIN_PHONE  = "966554325828"
 BANK_ACCOUNT = "SA2880000595608016106214"
-ADMIN_GROUP  = "120363411052676048@g.us"
+ADMIN_GROUP   = "120363411052676048@g.us"
+CONTROL_GROUP = "120363425055793404@g.us"
 
 # ==========================================
 # المدن
@@ -1237,8 +1238,24 @@ def webhook():
         if wtype != "incomingMessageReceived":
             return jsonify({"status": "ok"}), 200
 
-        # تجاهل القروبات
+        # ✅ رسائل قروب الإدارة — التحكم
         if "@g.us" in chat_id:
+            if chat_id == CONTROL_GROUP:
+                if mt == "textMessage":
+                    text = md.get("textMessageData", {}).get("textMessage", "")
+                elif mt == "extendedTextMessage":
+                    text = md.get("extendedTextMessageData", {}).get("text", "")
+                else:
+                    return jsonify({"status": "ok"}), 200
+                if not text:
+                    return jsonify({"status": "ok"}), 200
+                text   = normalize(text)
+                sender_phone = sender.replace("@c.us", "")
+                print(f"📩 قروب تحكم | من: {sender_phone} | النص: {text}")
+                ctrl_session = control_sessions.get("main", {"step": "start"})
+                ctrl_step    = ctrl_session.get("step", "start")
+                if text == "تحكم" or ctrl_step not in ["start", ""]:
+                    handle_control(CONTROL_GROUP, text)
             return jsonify({"status": "ok"}), 200
 
         # رسالة صوتية
@@ -1261,17 +1278,11 @@ def webhook():
         text  = normalize(text)
         phone = sender.replace("@c.us", "")
 
-        # DEBUG — اطبع كل رسالة واردة
-        print(f"📩 رسالة من: [{phone}] | ADMIN_PHONE: [{ADMIN_PHONE}] | تطابق: {phone == ADMIN_PHONE} | النص: {text}")
+        print(f"📩 رسالة من: [{phone}] | النص: {text}")
 
         # فلتر الأرقام السعودية
         if not phone.startswith("966"):
             send_msg(phone, "عذراً\nهذه الخدمة متاحة للأرقام السعودية فقط 🇸🇦")
-            return jsonify({"status": "ok"}), 200
-
-        # ✅ الأدمن أولاً — دائماً يذهب للتحكم
-        if phone == ADMIN_PHONE:
-            handle_control(phone, text)
             return jsonify({"status": "ok"}), 200
 
         # جلسة تسجيل مقدم خدمة
