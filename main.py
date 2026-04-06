@@ -267,6 +267,7 @@ def menu_city_more(phone):
         "23 - رفحاء\n"
         "24 - الباحة\n"
         "25 - عسير\n\n"
+        "0  - رجوع ↩️\n\n"
         "ارسل رقم مدينتك"
     )
 
@@ -279,7 +280,8 @@ def menu_service(phone, city):
         f"اخترت: {city}\n\n"
         "اختر الخدمة:\n\n" +
         "\n".join(lines) +
-        "\n\n13 - الإدارة\n\n"
+        "\n\n13 - الإدارة\n"
+        "0  - رجوع ↩️\n\n"
         "ارسل رقم الخدمة"
     )
 
@@ -288,7 +290,8 @@ def menu_admin_options(phone):
         "اختر من القائمة:\n\n"
         "1 - تسجيل كمقدم خدمة\n"
         "2 - تواصل مع الإدارة\n"
-        "3 - شكوى"
+        "3 - شكوى\n"
+        "0 - رجوع ↩️"
     )
 
 def menu_provider_main(phone, provider):
@@ -328,7 +331,8 @@ def client_terms(phone):
         "في المملكة العربية السعودية\n\n"
         "هل توافق؟\n\n"
         "1 - أوافق ✅\n"
-        "2 - لا أوافق ❌"
+        "2 - لا أوافق ❌\n"
+        "0 - رجوع ↩️"
     )
 
 def provider_terms(phone):
@@ -356,6 +360,7 @@ def provider_terms(phone):
         "━━━━━━━━━━━━━━\n"
         "1 - أوافق وأريد التسجيل ✅\n"
         "2 - لا أوافق ❌\n"
+        "0 - رجوع ↩️\n"
         "━━━━━━━━━━━━━━"
     )
 
@@ -367,6 +372,11 @@ def handle_provider_registration(phone, msg):
     step    = session.get("step", "")
 
     if step == "terms":
+        if msg == "0":
+            provider_sessions.pop(phone, None)
+            user_sessions[phone] = {"step": "admin_menu"}
+            menu_admin_options(phone)
+            return
         if msg == "1":
             provider_sessions[phone] = {"step": "name"}
             send_msg(phone, "ممتاز! 👍\n\nأرسل اسمك الكامل:")
@@ -379,6 +389,10 @@ def handle_provider_registration(phone, msg):
         menu_city(phone)
 
     elif step == "city":
+        if msg == "0":
+            provider_sessions[phone].update({"step": "terms"})
+            provider_terms(phone)
+            return
         if msg == "3":
             provider_sessions[phone].update({"step": "city_more"})
             menu_city_more(phone)
@@ -401,10 +415,15 @@ def handle_provider_registration(phone, msg):
             "10 - تبريد وتكييف\n"
             "11 - ورش وتشاليح\n"
             "12 - شاليهات\n\n"
-            "ارسل رقم تخصصك"
+            "ارسل رقم تخصصك\n"
+            "0  - رجوع ↩️"
         )
 
     elif step == "city_more":
+        if msg == "0":
+            provider_sessions[phone].update({"step": "city"})
+            menu_city(phone)
+            return
         if msg not in CITIES or msg in ["1", "2"]:
             send_msg(phone, "الرجاء ارسال رقم من 3 الى 25")
             return
@@ -423,10 +442,15 @@ def handle_provider_registration(phone, msg):
             "10 - تبريد وتكييف\n"
             "11 - ورش وتشاليح\n"
             "12 - شاليهات\n\n"
-            "ارسل رقم تخصصك"
+            "ارسل رقم تخصصك\n"
+            "0  - رجوع ↩️"
         )
 
     elif step == "specialty":
+        if msg == "0":
+            provider_sessions[phone].update({"step": "city"})
+            menu_city(phone)
+            return
         if msg not in SERVICES:
             send_msg(phone, "الرجاء ارسال رقم من 1 الى 12")
             return
@@ -477,7 +501,7 @@ def handle_provider_menu(phone, msg, provider):
             menu_provider_account(phone, provider)
         elif msg == "3":
             user_sessions[phone] = {"step": "provider_contact"}
-            send_msg(phone, "اكتب رسالتك للإدارة:")
+            send_msg(phone, "اكتب رسالتك للإدارة:\n\n0 - رجوع ↩️")
         else:
             menu_provider_main(phone, provider)
 
@@ -486,6 +510,10 @@ def handle_provider_menu(phone, msg, provider):
         menu_provider_main(phone, provider)
 
     elif step == "provider_contact":
+        if msg == "0":
+            user_sessions[phone] = {"step": "provider_main"}
+            menu_provider_main(phone, registered_providers[phone])
+            return
         send_group(ADMIN_GROUP,
             f"📞 رسالة من مقدم خدمة\n"
             f"الاسم: {provider.get('name', '')}\n"
@@ -737,6 +765,10 @@ def handle_customer(phone, msg):
         menu_service(phone, city)
 
     elif step == "city_more":
+        if msg == "0":
+            user_sessions[phone] = {"step": "city"}
+            menu_city(phone)
+            return
         if msg not in CITIES or msg in ["1", "2"]:
             send_msg(phone, "الرجاء ارسال رقم من 3 الى 25")
             return
@@ -746,6 +778,10 @@ def handle_customer(phone, msg):
 
     elif step == "service":
         city = session.get("city")
+        if msg == "0":
+            user_sessions[phone] = {"step": "city"}
+            menu_city(phone)
+            return
         if msg == "13":
             user_sessions[phone] = {"step": "admin_menu", "city": city}
             menu_admin_options(phone)
@@ -755,7 +791,8 @@ def handle_customer(phone, msg):
             send_msg(phone,
                 f"اخترت: {service} في {city}\n\n"
                 "اكتب وصفاً قصيراً عن طلبك:\n"
-                "(مثال: أحتاج كهربائي لإصلاح عطل في المنزل)"
+                "(مثال: أحتاج كهربائي لإصلاح عطل في المنزل)\n\n"
+                "0 - رجوع ↩️"
             )
         else:
             send_msg(phone, "الرجاء ارسال رقم من 1 الى 13")
@@ -763,6 +800,10 @@ def handle_customer(phone, msg):
     elif step == "description":
         city        = session.get("city")
         service     = session.get("service")
+        if msg == "0":
+            user_sessions[phone] = {"step": "service", "city": city}
+            menu_service(phone, city)
+            return
         description = msg
         if phone not in registered_clients:
             user_sessions[phone] = {
@@ -779,6 +820,15 @@ def handle_customer(phone, msg):
         city        = session.get("city")
         service     = session.get("service")
         description = session.get("description", "")
+        if msg == "0":
+            user_sessions[phone] = {"step": "description", "city": city, "service": service}
+            send_msg(phone,
+                f"اخترت: {service} في {city}\n\n"
+                "اكتب وصفاً قصيراً عن طلبك:\n"
+                "(مثال: أحتاج كهربائي لإصلاح عطل في المنزل)\n\n"
+                "0 - رجوع ↩️"
+            )
+            return
         if msg == "1":
             registered_clients.add(phone)
             save_clients()
@@ -791,6 +841,10 @@ def handle_customer(phone, msg):
 
     elif step == "admin_menu":
         city = session.get("city")
+        if msg == "0":
+            user_sessions[phone] = {"step": "service", "city": city}
+            menu_service(phone, city)
+            return
         if msg == "1":
             provider_sessions[phone] = {"step": "terms"}
             provider_terms(phone)
@@ -806,6 +860,10 @@ def handle_customer(phone, msg):
             menu_admin_options(phone)
 
     elif step == "complaint":
+        if msg == "0":
+            user_sessions[phone] = {"step": "admin_menu"}
+            menu_admin_options(phone)
+            return
         send_group(ADMIN_GROUP, f"🚨 شكوى\nرقم العميل: {phone}\nالشكوى: {msg}")
         send_msg(phone, "تم استلام شكواك ✅\nسيتم التواصل معك قريباً")
         user_sessions[phone] = {"step": "start"}
@@ -837,7 +895,8 @@ def handle_customer(phone, msg):
                     "ما سبب عدم الاتفاق؟\n\n"
                     "1 - السعر مرتفع\n"
                     "2 - لم يتجاوب\n"
-                    "3 - سبب آخر"
+                    "3 - سبب آخر\n"
+                    "0 - رجوع ↩️"
                 )
 
         elif msg == "3":
@@ -856,6 +915,15 @@ def handle_customer(phone, msg):
 
     elif step == "reason":
         oid = session.get("order_id")
+        if msg == "0":
+            user_sessions[phone] = {"step": "provider_sent", "order_id": oid}
+            send_msg(phone,
+                "كيف كانت تجربتك مع مقدم الخدمة؟\n\n"
+                "1 - ممتاز تم الاتفاق ✅\n"
+                "2 - لم يتم الاتفاق (إعادة)\n"
+                "3 - تواصل مع الإدارة"
+            )
+            return
         if msg == "1":
             user_sessions[phone] = {"step": "price", "order_id": oid}
             send_msg(phone, "كم السعر المعروض؟ (بالريال)")
@@ -1198,13 +1266,10 @@ def webhook():
             send_msg(phone, "عذراً\nهذه الخدمة متاحة للأرقام السعودية فقط 🇸🇦")
             return jsonify({"status": "ok"}), 200
 
-        # ✅ الأدمن أولاً
+        # ✅ الأدمن أولاً — دائماً يذهب للتحكم
         if phone == ADMIN_PHONE:
-            ctrl_session = control_sessions.get("main", {"step": "start"})
-            ctrl_step    = ctrl_session.get("step", "start")
-            if text == "تحكم" or ctrl_step not in ["start", ""]:
-                handle_control(phone, text)
-                return jsonify({"status": "ok"}), 200
+            handle_control(phone, text)
+            return jsonify({"status": "ok"}), 200
 
         # جلسة تسجيل مقدم خدمة
         if phone in provider_sessions:
