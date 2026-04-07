@@ -21,13 +21,31 @@ def normalize(text):
 # ==========================================
 # إعدادات Green API
 # ==========================================
-INSTANCE_ID  = os.environ.get("INSTANCE_ID", "7107565478")
-API_TOKEN    = os.environ.get("API_TOKEN", "503485c7be7c41aa9ae7737ea65750bd7b2e1fd0d8f943d796")
-BASE_URL     = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
-ADMIN_PHONE  = "966554325828"
+# ==========================================
+# الحساب الرئيسي
+# ==========================================
+PRIMARY_INSTANCE = "7107579979"
+PRIMARY_TOKEN    = "5c1dd144d2ff4079b484b1362e763bc18dc5ebfc12e049acbe"
+PRIMARY_PHONE    = "966500830902"
+PRIMARY_URL      = f"https://7107.api.greenapi.com/waInstance{PRIMARY_INSTANCE}"
+
+# ==========================================
+# الحساب الاحتياطي
+# ==========================================
+BACKUP_INSTANCE  = "7107565478"
+BACKUP_TOKEN     = "503485c7be7c41aa9ae7737ea65750bd7b2e1fd0d8f943d796"
+BACKUP_PHONE     = "966554325828"
+BACKUP_URL       = f"https://7107.api.greenapi.com/waInstance{BACKUP_INSTANCE}"
+
+# الحساب النشط حالياً
+active_instance  = {"url": PRIMARY_URL, "token": PRIMARY_TOKEN, "phone": PRIMARY_PHONE}
+failover_active  = False  # True = يعمل على الاحتياطي
 BANK_ACCOUNT = "SA2880000595608016106214"
 ADMIN_GROUP   = "120363411052676048@g.us"
 CONTROL_GROUP = "120363425055793404@g.us"
+
+# أرقام مصرح لها بالتحكم (أي شخص في قروب التحكم يرسل يُعامَل كأدمن)
+ADMIN_PHONES = set()  # تُحدَّث تلقائياً من القروب
 
 # ==========================================
 # المدن
@@ -168,26 +186,66 @@ def save_orders():
         print(f"خطأ حفظ طلبات: {e}")
 
 # ==========================================
-# دوال الإرسال
+# دوال الإرسال مع Failover
 # ==========================================
-def send_msg(to, text):
-    url     = f"{BASE_URL}/sendMessage/{API_TOKEN}"
-    chat_id = f"{to}@c.us" if "@" not in to else to
+def _do_send(chat_id, text, url, token):
     try:
-        r = requests.post(url, json={"chatId": chat_id, "message": text}, timeout=10)
-        return r.json().get("idMessage", "")
+        r = requests.post(
+            f"{url}/sendMessage/{token}",
+            json={"chatId": chat_id, "message": text},
+            timeout=10
+        )
+        result = r.json()
+        return result.get("idMessage", "")
     except Exception as e:
         print(f"Send error: {e}")
-        return ""
+        return None
+
+def check_and_failover():
+    """تحقق من الحساب الرئيسي — لو فشل انتقل للاحتياطي"""
+    global failover_active
+    try:
+        r = requests.get(
+            f"{PRIMARY_URL}/getStateInstance/{PRIMARY_TOKEN}",
+            timeout=8
+        )
+        state = r.json().get("stateInstance", "")
+        if state == "authorized":
+            if failover_active:
+                failover_active = False
+                active_instance.update({"url": PRIMARY_URL, "token": PRIMARY_TOKEN, "phone": PRIMARY_PHONE})
+                print("✅ رجع للحساب الرئيسي")
+            return True
+        else:
+            raise Exception(f"state: {state}")
+    except Exception as e:
+        if not failover_active:
+            failover_active = True
+            active_instance.update({"url": BACKUP_URL, "token": BACKUP_TOKEN, "phone": BACKUP_PHONE})
+            print(f"⚠️ تحول للحساب الاحتياطي — السبب: {e}")
+        return False
+
+def send_msg(to, text):
+    chat_id = f"{to}@c.us" if "@" not in to else to
+    # جرب الحساب النشط
+    result = _do_send(chat_id, text, active_instance["url"], active_instance["token"])
+    if result is None:
+        # فشل — جرب الـ failover
+        check_and_failover()
+        result = _do_send(chat_id, text, active_instance["url"], active_instance["token"])
+    return result or ""
 
 def send_group(gid, text):
-    url = f"{BASE_URL}/sendMessage/{API_TOKEN}"
-    try:
-        r = requests.post(url, json={"chatId": gid, "message": text}, timeout=10)
-        return r.json().get("idMessage", "")
-    except Exception as e:
-        print(f"Group error: {e}")
-        return ""
+    result = _do_send(gid, text, active_instance["url"], active_instance["token"])
+    if result is None:
+        check_and_failover()
+        result = _do_send(gid, text, active_instance["url"], active_instance["token"])
+    return result or ""
+
+def schedule_health_check():
+    """فحص دوري كل 5 دقائق"""
+    check_and_failover()
+    threading.Timer(5 * 60, schedule_health_check).start()
 
 # ==========================================
 # دوال مساعدة
@@ -1252,6 +1310,8 @@ def webhook():
                 text         = normalize(text)
                 sender_phone = sender.replace("@c.us", "")
                 print(f"📩 قروب تحكم | من: {sender_phone} | النص: {text}")
+                # تسجيل الرقم كأدمن مصرح
+                ADMIN_PHONES.add(sender_phone)
                 # البوت يرد على المرسل مباشرة برسالة خاصة
                 ctrl_session = control_sessions.get(sender_phone, {"step": "start"})
                 ctrl_step    = ctrl_session.get("step", "start")
@@ -1280,6 +1340,14 @@ def webhook():
         phone = sender.replace("@c.us", "")
 
         print(f"📩 رسالة من: [{phone}] | النص: {text}")
+
+        # لو الرقم أدمن مصرح — اعتبره تحكم
+        if phone in ADMIN_PHONES:
+            ctrl_session = control_sessions.get(phone, {"step": "start"})
+            ctrl_step    = ctrl_session.get("step", "start")
+            if text == "تحكم" or ctrl_step not in ["start", ""]:
+                handle_control(phone, text)
+                return jsonify({"status": "ok"}), 200
 
         # فلتر الأرقام السعودية
         if not phone.startswith("966"):
@@ -1325,6 +1393,8 @@ def home():
 
 # تحميل البيانات عند البدء
 load_data()
+schedule_health_check()
+print(f"🚀 البوت يعمل — الحساب الرئيسي: {PRIMARY_PHONE}")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
