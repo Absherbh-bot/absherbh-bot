@@ -961,6 +961,7 @@ def handle_control(phone, msg):
             "1 - رسالة جماعية للمقدمين 📢\n"
             "2 - رسالة جماعية للعملاء 👥\n"
             "3 - إدارة مقدمي الخدمة ⚙️\n"
+            "4 - إدارة العملاء 👤\n"
             "0 - إلغاء ❌"
         )
         return
@@ -1005,8 +1006,17 @@ def handle_control(phone, msg):
                 "4 - حذف مقدم\n"
                 "0 - رجوع"
             )
+        elif msg == "4":
+            control_sessions[phone] = {"step": "manage_clients"}
+            send_msg(phone,
+                "إدارة العملاء 👤\n\n"
+                "1 - عرض قائمة العملاء\n"
+                "2 - حذف عميل\n"
+                "3 - رفع حظر عميل\n"
+                "0 - رجوع ↩️"
+            )
         else:
-            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3")
+            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3 أو 4")
         return
 
     # ─── رسالة جماعية للعملاء ───
@@ -1116,6 +1126,105 @@ def handle_control(phone, msg):
             "2 - إيقاف مقدم\n"
             "3 - تفعيل مقدم\n"
             "4 - حذف مقدم\n"
+            "0 - رجوع ↩️"
+        )
+        return
+
+    # ─── إدارة العملاء ───
+    if step == "manage_clients":
+        if msg == "1":
+            if not registered_clients:
+                send_msg(phone, "لا يوجد عملاء مسجلون")
+                control_sessions[phone] = {"step": "manage_clients"}
+                return
+            lines = []
+            for i, c in enumerate(registered_clients, 1):
+                status = "🚫" if c in blocked_users and time.time() < blocked_users[c] else "✅"
+                lines.append(f"{status} {i}. {c}")
+            chunk = f"عدد العملاء: {len(registered_clients)}\n\n"
+            for line in lines:
+                if len(chunk) + len(line) > 3000:
+                    send_msg(phone, chunk)
+                    chunk = ""
+                    time.sleep(0.5)
+                chunk += line + "\n"
+            if chunk:
+                send_msg(phone, chunk)
+            control_sessions[phone] = {"step": "manage_clients"}
+            send_msg(phone,
+                "إدارة العملاء 👤\n\n"
+                "1 - عرض قائمة العملاء\n"
+                "2 - حذف عميل\n"
+                "3 - رفع حظر عميل\n"
+                "0 - رجوع ↩️"
+            )
+
+        elif msg == "2":
+            control_sessions[phone] = {"step": "client_action", "action": "delete"}
+            send_msg(phone,
+                "أدخل رقم العميل الذي تريد حذفه:\n"
+                "(بدون + مثال: 966501234567)\n\n"
+                "0 - رجوع ↩️"
+            )
+
+        elif msg == "3":
+            control_sessions[phone] = {"step": "client_action", "action": "unblock"}
+            send_msg(phone,
+                "أدخل رقم العميل الذي تريد رفع حظره:\n"
+                "(بدون + مثال: 966501234567)\n\n"
+                "0 - رجوع ↩️"
+            )
+
+        elif msg == "0":
+            control_sessions[phone] = {"step": "main_menu"}
+            send_msg(phone,
+                "لوحة التحكم 🎮\n\n"
+                "1 - رسالة جماعية للمقدمين 📢\n"
+                "2 - رسالة جماعية للعملاء 👥\n"
+                "3 - إدارة مقدمي الخدمة ⚙️\n"
+                "4 - إدارة العملاء 👤\n"
+                "0 - إلغاء ❌"
+            )
+        else:
+            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3")
+        return
+
+    if step == "client_action":
+        action = session.get("action")
+        if msg == "0":
+            control_sessions[phone] = {"step": "manage_clients"}
+            send_msg(phone,
+                "إدارة العملاء 👤\n\n"
+                "1 - عرض قائمة العملاء\n"
+                "2 - حذف عميل\n"
+                "3 - رفع حظر عميل\n"
+                "0 - رجوع ↩️"
+            )
+            return
+        target = msg.strip()
+        if action == "delete":
+            if target in registered_clients:
+                registered_clients.discard(target)
+                save_clients()
+                blocked_users.pop(target, None)
+                user_sessions.pop(target, None)
+                send_msg(phone, f"✅ تم حذف العميل {target}")
+                send_msg(target, "تم حذف حسابك من المنصة\nللاستفسار تواصل مع الإدارة")
+            else:
+                send_msg(phone, f"الرقم {target} غير موجود في قائمة العملاء")
+        elif action == "unblock":
+            if target in blocked_users:
+                del blocked_users[target]
+                send_msg(phone, f"✅ تم رفع الحظر عن {target}")
+                send_msg(target, "تم رفع الحظر عن حسابك ✅\nيمكنك استخدام الخدمة الآن")
+            else:
+                send_msg(phone, f"الرقم {target} غير محظور أصلاً")
+        control_sessions[phone] = {"step": "manage_clients"}
+        send_msg(phone,
+            "إدارة العملاء 👤\n\n"
+            "1 - عرض قائمة العملاء\n"
+            "2 - حذف عميل\n"
+            "3 - رفع حظر عميل\n"
             "0 - رجوع ↩️"
         )
         return
