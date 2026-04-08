@@ -4,7 +4,8 @@ import json
 import requests
 import threading
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
+import io
 
 app = Flask(__name__)
 
@@ -27,7 +28,8 @@ def normalize(text):
 INSTANCE_ID = os.environ.get("INSTANCE_ID", "7107579979")
 API_TOKEN   = os.environ.get("API_TOKEN", "5c1dd144d2ff4079b484b1362e763bc18dc5ebfc12e049acbe")
 BASE_URL    = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
-BANK_ACCOUNT = "SA2880000595608016106214"
+BANK_ACCOUNT   = "SA2880000595608016106214"
+EXPORT_SECRET  = os.environ.get("EXPORT_SECRET", "ms-export-2026")
 ADMIN_GROUP   = "120363406973437339@g.us"
 CONTROL_GROUP = "120363425363360676@g.us"
 
@@ -962,6 +964,7 @@ def handle_control(phone, msg):
             "2 - رسالة جماعية للعملاء 👥\n"
             "3 - إدارة مقدمي الخدمة ⚙️\n"
             "4 - إدارة العملاء 👤\n"
+            "5 - تحميل البيانات 📊\n"
             "0 - إلغاء ❌"
         )
         return
@@ -1015,8 +1018,57 @@ def handle_control(phone, msg):
                 "3 - رفع حظر عميل\n"
                 "0 - رجوع ↩️"
             )
+        elif msg == "5":
+            control_sessions[phone] = {"step": "export_menu"}
+            send_msg(phone,
+                "تحميل البيانات 📊\n\n"
+                "1 - بيانات مقدمي الخدمة\n"
+                "2 - بيانات العملاء\n"
+                "3 - كل البيانات\n"
+                "0 - رجوع ↩️"
+            )
         else:
-            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3 أو 4")
+            send_msg(phone, "الرجاء ارسال رقم من 1 الى 5")
+        return
+
+    # ─── تحميل البيانات ───
+    if step == "export_menu":
+        base_url = os.environ.get("RENDER_EXTERNAL_URL", "https://absherbh-bot.onrender.com")
+        key      = EXPORT_SECRET
+        if msg == "1":
+            send_msg(phone,
+                f"رابط تحميل بيانات المقدمين 📋\n\n"
+                f"{base_url}/export?key={key}&type=providers\n\n"
+                f"المقدمون المسجلون: {len(registered_providers)}"
+            )
+            control_sessions[phone] = {"step": "export_menu"}
+        elif msg == "2":
+            send_msg(phone,
+                f"رابط تحميل بيانات العملاء 👥\n\n"
+                f"{base_url}/export?key={key}&type=clients\n\n"
+                f"العملاء المسجلون: {len(registered_clients)}"
+            )
+            control_sessions[phone] = {"step": "export_menu"}
+        elif msg == "3":
+            send_msg(phone,
+                f"رابط تحميل كل البيانات 📊\n\n"
+                f"{base_url}/export?key={key}\n\n"
+                f"المقدمون: {len(registered_providers)} | العملاء: {len(registered_clients)}"
+            )
+            control_sessions[phone] = {"step": "export_menu"}
+        elif msg == "0":
+            control_sessions[phone] = {"step": "main_menu"}
+            send_msg(phone,
+                "لوحة التحكم 🎮\n\n"
+                "1 - رسالة جماعية للمقدمين 📢\n"
+                "2 - رسالة جماعية للعملاء 👥\n"
+                "3 - إدارة مقدمي الخدمة ⚙️\n"
+                "4 - إدارة العملاء 👤\n"
+                "5 - تحميل البيانات 📊\n"
+                "0 - إلغاء ❌"
+            )
+        else:
+            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3")
         return
 
     # ─── رسالة جماعية للعملاء ───
@@ -1440,6 +1492,93 @@ def webhook():
     except Exception as e:
         print(f"Webhook error: {e}")
     return jsonify({"status": "ok"}), 200
+
+
+@app.route("/export", methods=["GET"])
+def export_data():
+    key = request.args.get("key", "")
+    if key != EXPORT_SECRET:
+        return "غير مصرح ❌", 403
+
+    export_type = request.args.get("type", "providers")
+
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = openpyxl.Workbook()
+
+        # ── ورقة مقدمي الخدمة ──
+        ws1 = wb.active
+        ws1.title = "مقدمو الخدمة"
+        headers1 = ["الرقم", "الاسم", "المدينة", "التخصص", "الحالة", "الاشتراك", "تاريخ التسجيل"]
+        for col, h in enumerate(headers1, 1):
+            cell = ws1.cell(row=1, column=col, value=h)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="1a7a4a")
+            cell.alignment = Alignment(horizontal="center")
+        for row, (phone, d) in enumerate(registered_providers.items(), 2):
+            ws1.cell(row=row, column=1, value=phone)
+            ws1.cell(row=row, column=2, value=d.get("name", ""))
+            ws1.cell(row=row, column=3, value=d.get("city", ""))
+            ws1.cell(row=row, column=4, value=d.get("specialty", ""))
+            ws1.cell(row=row, column=5, value="نشط" if d.get("status") == "active" else "موقوف")
+            ws1.cell(row=row, column=6, value=d.get("expiry", "غير محدد"))
+            ws1.cell(row=row, column=7, value=d.get("registered", ""))
+        for col in ws1.columns:
+            ws1.column_dimensions[col[0].column_letter].width = 20
+
+        # ── ورقة العملاء ──
+        ws2 = wb.create_sheet("العملاء")
+        headers2 = ["الرقم", "الحالة"]
+        for col, h in enumerate(headers2, 1):
+            cell = ws2.cell(row=1, column=col, value=h)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="1a4a7a")
+            cell.alignment = Alignment(horizontal="center")
+        for row, phone in enumerate(registered_clients, 2):
+            ws2.cell(row=row, column=1, value=phone)
+            blocked = phone in blocked_users and time.time() < blocked_users.get(phone, 0)
+            ws2.cell(row=row, column=2, value="محظور" if blocked else "نشط")
+        for col in ws2.columns:
+            ws2.column_dimensions[col[0].column_letter].width = 20
+
+        # ── ورقة الطلبات ──
+        ws3 = wb.create_sheet("الطلبات")
+        headers3 = ["رقم الطلب", "العميل", "المدينة", "الخدمة", "الوصف", "الحالة", "المحاولات", "التاريخ"]
+        for col, h in enumerate(headers3, 1):
+            cell = ws3.cell(row=1, column=col, value=h)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="7a4a1a")
+            cell.alignment = Alignment(horizontal="center")
+        for row, (oid, od) in enumerate(pending_orders.items(), 2):
+            ws3.cell(row=row, column=1, value=oid)
+            ws3.cell(row=row, column=2, value=od.get("phone", ""))
+            ws3.cell(row=row, column=3, value=od.get("city", ""))
+            ws3.cell(row=row, column=4, value=od.get("service", ""))
+            ws3.cell(row=row, column=5, value=od.get("description", ""))
+            ws3.cell(row=row, column=6, value="مكتمل" if od.get("taken") else "معلق")
+            ws3.cell(row=row, column=7, value=od.get("attempts", 1))
+            ws3.cell(row=row, column=8, value=od.get("created", ""))
+        for col in ws3.columns:
+            ws3.column_dimensions[col[0].column_letter].width = 20
+
+        # حفظ في الذاكرة وإرسال
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        filename = f"mudhakkira_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except ImportError:
+        return "openpyxl غير مثبت — شغّل: pip install openpyxl", 500
+    except Exception as e:
+        return f"خطأ: {e}", 500
 
 
 @app.route("/", methods=["GET"])
