@@ -30,21 +30,12 @@ API_TOKEN   = os.environ.get("API_TOKEN", "5c1dd144d2ff4079b484b1362e763bc18dc5e
 BASE_URL    = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
 BANK_ACCOUNT   = "SA2880000595608016106214"
 EXPORT_SECRET  = os.environ.get("EXPORT_SECRET", "ms-export-2026")
-ADMIN_GROUP   = "120363406971255280@g.us"
+ADMIN_GROUP       = "120363406973437339@g.us"
+CONTROL_GROUP     = "120363425363360676@g.us"
 SUBSCRIBERS_GROUP = "120363406971255280@g.us"
-CONTROL_GROUP = "120363425363360676@g.us"
 
 # أرقام مصرح لها بالتحكم
 ADMIN_PHONES = {"966531157747"}  # رقم المتحكم الثابت
-
-# ==========================================
-# اللغات
-# ==========================================
-LANGUAGES = {
-    "1": {"code": "ar", "name": "العربية"},
-    "2": {"code": "en", "name": "English"},
-    "3": {"code": "ur", "name": "اردو"},
-}
 
 # ==========================================
 # المدن
@@ -91,6 +82,156 @@ SERVICES = {
     "8": "سطحات",
 }
 
+
+# ==========================================
+# نظام الترجمة — 3 لغات
+# ==========================================
+T = {
+    "ar": {
+        "welcome": (
+            'مرحباً بك في منصة "مذكرة سلمان" 📒\n'
+            'منصتك الذكية للتواصل مع مقدمي الخدمات في مدينتك\n'
+            '━━━━━━━━━━━━━━\n'
+            'تريد خدمة؟ اختر مدينتك:\n'
+            '1 - حائل 📍\n'
+            '(مدن أخرى قريباً 🔜)\n'
+            '━━━━━━━━━━━━━━\n'
+            'تريد تسجيل نشاطك؟ أرسل: 2\n'
+            'Do you want to register? Send: 2\n'
+            'کیا آپ رجسٹر کرنا چاہتے ہیں؟ بھیجیں: 2\n'
+            '━━━━━━━━━━━━━━\n'
+            'للشكاوى والاقتراحات أرسل: 3\n'
+            '━━━━━━━━━━━━━━\n'
+            '🌐 تغيير اللغة / Change language / زبان: 4'
+        ),
+        "choose_city": "اختر مدينتك:\n1 - حائل 📍\n(مدن أخرى قريباً 🔜)\n\n0 - رجوع ↩️",
+        "choose_service": "اختر الخدمة:\n\n1 - الخدمات الهندسية\n2 - الخدمات العقارية\n3 - الخدمات الطلابية\n4 - مناديب التوصيل\n5 - شاليهات\n6 - صهريج مياه\n7 - اسطوانات الغاز\n8 - سطحات\n\n0 - رجوع ↩️",
+        "choose_language": "اختر لغتك:\n1 - العربية 🇸🇦\n2 - English 🇬🇧\n3 - اردو 🇵🇰",
+        "reg_city": "اختر مدينتك للتسجيل:\n1 - حائل 📍\n(مدن أخرى قريباً 🔜)\n\n0 - رجوع ↩️",
+        "reg_service": "اختر تخصصك:\n\n1 - الخدمات الهندسية\n2 - الخدمات العقارية\n3 - الخدمات الطلابية\n4 - مناديب التوصيل\n5 - شاليهات\n6 - صهريج مياه\n7 - اسطوانات الغاز\n8 - سطحات\n\n0 - رجوع ↩️",
+        "reg_info": "أرسل اسمك أو اسم نشاطك التجاري\nمع رقم هويتك أو سجلك التجاري\n\n0 - رجوع ↩️",
+        "reg_pending": (
+            "شكراً! طلبك قيد المراجعة ✅\n"
+            "━━━━━━━━━━━━━━\n"
+            "قم بتحويل رسوم الاشتراك:\n"
+            "💰 20 ريال لكل 28 يوم\n"
+            "ابتداءً من تاريخ اعتمادك من الإدارة\n"
+            "━━━━━━━━━━━━━━\n"
+            f"رقم الحساب:\n{BANK_ACCOUNT}\n"
+            "━━━━━━━━━━━━━━\n"
+            "أرسل إيصال التحويل وسنراجع طلبك 🙏"
+        ),
+        "reg_approved": (
+            "تم اعتمادك في منصة مذكرة سلمان 🎉\n"
+            "━━━━━━━━━━━━━━\n"
+            "اشتراكك بدأ من اليوم لمدة 28 يوم\n"
+            "ستصلك طلبات العملاء مباشرة\n"
+            "أرسل 1 لاستلام أي طلب ✅"
+        ),
+        "complaint_prompt": "اكتب شكواك أو اقتراحك وسيتم مراجعته فوراً:\n\n0 - رجوع ↩️",
+        "complaint_done": "تم استلام شكواك ✅\nسيتم التواصل معك قريباً",
+        "invalid": "الرجاء ارسال رقم صحيح",
+        "waiting": "طلبك قيد المراجعة ⏳",
+    },
+    "en": {
+        "welcome": (
+            'Welcome to "Mudhakkira Salman" platform 📒\n'
+            'Your smart platform to connect with service providers in your city\n'
+            '━━━━━━━━━━━━━━\n'
+            'Need a service? Choose your city:\n'
+            '1 - Hail 📍\n'
+            '(More cities coming soon 🔜)\n'
+            '━━━━━━━━━━━━━━\n'
+            'تريد تسجيل نشاطك؟ أرسل: 2\n'
+            'Do you want to register? Send: 2\n'
+            'کیا آپ رجسٹر کرنا چاہتے ہیں؟ بھیجیں: 2\n'
+            '━━━━━━━━━━━━━━\n'
+            'Complaints & suggestions: Send 3\n'
+            '━━━━━━━━━━━━━━\n'
+            '🌐 تغيير اللغة / Change language / زبان: 4'
+        ),
+        "choose_city": "Choose your city:\n1 - Hail 📍\n(More cities coming soon 🔜)\n\n0 - Back ↩️",
+        "choose_service": "Choose a service:\n\n1 - Engineering\n2 - Real Estate\n3 - Academic\n4 - Delivery\n5 - Chalets\n6 - Water Tanker\n7 - Gas Cylinders\n8 - Tow Truck\n\n0 - Back ↩️",
+        "choose_language": "Choose your language:\n1 - العربية 🇸🇦\n2 - English 🇬🇧\n3 - اردو 🇵🇰",
+        "reg_city": "Choose your city to register:\n1 - Hail 📍\n(More cities coming soon 🔜)\n\n0 - Back ↩️",
+        "reg_service": "Choose your specialty:\n\n1 - Engineering\n2 - Real Estate\n3 - Academic\n4 - Delivery\n5 - Chalets\n6 - Water Tanker\n7 - Gas Cylinders\n8 - Tow Truck\n\n0 - Back ↩️",
+        "reg_info": "Send your name or business name\nwith your ID number or commercial registration\n\n0 - Back ↩️",
+        "reg_pending": (
+            "Thank you! Your request is under review ✅\n"
+            "━━━━━━━━━━━━━━\n"
+            "Please transfer the subscription fee:\n"
+            "💰 20 SAR every 28 days\n"
+            "Starting from your approval date\n"
+            "━━━━━━━━━━━━━━\n"
+            f"Account number:\n{BANK_ACCOUNT}\n"
+            "━━━━━━━━━━━━━━\n"
+            "Send the transfer receipt and we will review your request 🙏"
+        ),
+        "reg_approved": (
+            "You have been approved on Mudhakkira Salman 🎉\n"
+            "━━━━━━━━━━━━━━\n"
+            "Your subscription started today for 28 days\n"
+            "You will receive client requests directly\n"
+            "Send 1 to accept any request ✅"
+        ),
+        "complaint_prompt": "Write your complaint or suggestion and we will review it immediately:\n\n0 - Back ↩️",
+        "complaint_done": "Your complaint has been received ✅\nWe will contact you soon",
+        "invalid": "Please send a valid number",
+        "waiting": "Your request is under review ⏳",
+    },
+    "ur": {
+        "welcome": (
+            '"مذکرہ سلمان" پلیٹ فارم میں خوش آمدید 📒\n'
+            'آپ کے شہر میں سروس فراہم کنندگان سے جڑنے کا ذہین پلیٹ فارم\n'
+            '━━━━━━━━━━━━━━\n'
+            'سروس چاہیے؟ اپنا شہر چنیں:\n'
+            '1 - حائل 📍\n'
+            '(مزید شہر جلد آ رہے ہیں 🔜)\n'
+            '━━━━━━━━━━━━━━\n'
+            'تريد تسجيل نشاطك؟ أرسل: 2\n'
+            'Do you want to register? Send: 2\n'
+            'کیا آپ رجسٹر کرنا چاہتے ہیں؟ بھیجیں: 2\n'
+            '━━━━━━━━━━━━━━\n'
+            'شکایات اور تجاویز کے لیے بھیجیں: 3\n'
+            '━━━━━━━━━━━━━━\n'
+            '🌐 تغيير اللغة / Change language / زبان: 4'
+        ),
+        "choose_city": "اپنا شہر چنیں:\n1 - حائل 📍\n(مزید شہر جلد 🔜)\n\n0 - واپس ↩️",
+        "choose_service": "سروس چنیں:\n\n1 - انجینئرنگ\n2 - رئیل اسٹیٹ\n3 - تعلیمی\n4 - ڈیلیوری\n5 - شالیہات\n6 - واٹر ٹینکر\n7 - گیس سلنڈر\n8 - ٹو ٹرک\n\n0 - واپس ↩️",
+        "choose_language": "اپنی زبان چنیں:\n1 - العربية 🇸🇦\n2 - English 🇬🇧\n3 - اردو 🇵🇰",
+        "reg_city": "رجسٹریشن کے لیے شہر چنیں:\n1 - حائل 📍\n(مزید شہر جلد 🔜)\n\n0 - واپس ↩️",
+        "reg_service": "اپنی خصوصیت چنیں:\n\n1 - انجینئرنگ\n2 - رئیل اسٹیٹ\n3 - تعلیمی\n4 - ڈیلیوری\n5 - شالیہات\n6 - واٹر ٹینکر\n7 - گیس سلنڈر\n8 - ٹو ٹرک\n\n0 - واپس ↩️",
+        "reg_info": "اپنا نام یا کاروباری نام بھیجیں\nشناختی کارڈ یا تجارتی رجسٹریشن نمبر کے ساتھ\n\n0 - واپس ↩️",
+        "reg_pending": (
+            "شکریہ! آپ کی درخواست زیر غور ہے ✅\n"
+            "━━━━━━━━━━━━━━\n"
+            "براہ کرم سبسکرپشن فیس منتقل کریں:\n"
+            "💰 20 ریال ہر 28 دن\n"
+            "آپ کی منظوری کی تاریخ سے\n"
+            "━━━━━━━━━━━━━━\n"
+            f"اکاؤنٹ نمبر:\n{BANK_ACCOUNT}\n"
+            "━━━━━━━━━━━━━━\n"
+            "ٹرانسفر کی رسید بھیجیں اور ہم آپ کی درخواست دیکھیں گے 🙏"
+        ),
+        "reg_approved": (
+            "مذکرہ سلمان پر آپ کی منظوری ہو گئی 🎉\n"
+            "━━━━━━━━━━━━━━\n"
+            "آپ کی سبسکرپشن آج سے 28 دن کے لیے شروع ہوئی\n"
+            "کلائنٹ کی درخواستیں براہ راست آپ کو ملیں گی\n"
+            "کوئی بھی درخواست قبول کرنے کے لیے 1 بھیجیں ✅"
+        ),
+        "complaint_prompt": "اپنی شکایت یا تجویز لکھیں اور ہم فوری جائزہ لیں گے:\n\n0 - واپس ↩️",
+        "complaint_done": "آپ کی شکایت موصول ہو گئی ✅\nہم جلد رابطہ کریں گے",
+        "invalid": "براہ کرم درست نمبر بھیجیں",
+        "waiting": "آپ کی درخواست زیر غور ہے ⏳",
+    },
+}
+
+def t(phone, key):
+    """ترجمة نص حسب لغة المستخدم"""
+    lang = user_language.get(phone, "ar")
+    return T.get(lang, T["ar"]).get(key, T["ar"].get(key, ""))
+
 # ==========================================
 # Render Disk
 # ==========================================
@@ -99,13 +240,17 @@ PROVIDERS_FILE = f"{DATA_PATH}/providers.json"
 CLIENTS_FILE   = f"{DATA_PATH}/clients.json"
 ORDERS_FILE    = f"{DATA_PATH}/orders.json"
 COUNTER_FILE   = f"{DATA_PATH}/counter.json"
-LOG_FILE       = f"{DATA_PATH}/activity_log.json"
+LOG_FILE          = f"{DATA_PATH}/activity_log.json"
+LANGUAGES_FILE    = f"{DATA_PATH}/languages.json"
+PENDING_FILE      = f"{DATA_PATH}/pending_approval.json"
 
 # ==========================================
 # البيانات في الذاكرة
 # ==========================================
 user_sessions     = {}
 activity_log      = []  # سجل العمليات
+user_language     = {}  # لغة كل مستخدم: ar/en/ur
+pending_approval  = {}  # مقدمون ينتظرون الاعتماد {phone: {data, timestamp}}
 provider_sessions = {}
 control_sessions  = {}
 registered_clients   = set()
@@ -114,11 +259,7 @@ pending_orders    = {}
 blocked_users     = {}
 order_counter     = [1000]
 last_activity     = {}
-registration_requests = {}
-registration_cooldown = {}
 SESSION_TIMEOUT   = 2 * 60  # دقيقتان
-REGISTRATION_COOLDOWN = 24 * 60 * 60
-REGISTRATION_TIMEOUT = 5 * 60
 
 # ==========================================
 # حفظ وتحميل البيانات
@@ -143,6 +284,14 @@ def load_data():
             with open(LOG_FILE, "r", encoding="utf-8") as f:
                 activity_log.extend(json.load(f))
             print(f"✅ تم تحميل {len(activity_log)} سجل")
+        if os.path.exists(LANGUAGES_FILE):
+            with open(LANGUAGES_FILE, "r", encoding="utf-8") as f:
+                user_language.update(json.load(f))
+            print(f"✅ تم تحميل {len(user_language)} لغة")
+        if os.path.exists(PENDING_FILE):
+            with open(PENDING_FILE, "r", encoding="utf-8") as f:
+                pending_approval.update(json.load(f))
+            print(f"✅ تم تحميل {len(pending_approval)} طلب انتظار")
         if os.path.exists(ORDERS_FILE):
             with open(ORDERS_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
@@ -179,6 +328,22 @@ def save_counter():
             json.dump({"counter": order_counter[0]}, f)
     except Exception as e:
         print(f"خطأ حفظ عداد: {e}")
+
+def save_language():
+    try:
+        os.makedirs(DATA_PATH, exist_ok=True)
+        with open(LANGUAGES_FILE, "w", encoding="utf-8") as f:
+            json.dump(user_language, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"خطأ حفظ لغات: {e}")
+
+def save_pending():
+    try:
+        os.makedirs(DATA_PATH, exist_ok=True)
+        with open(PENDING_FILE, "w", encoding="utf-8") as f:
+            json.dump(pending_approval, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"خطأ حفظ انتظار: {e}")
 
 def save_orders():
     try:
@@ -268,145 +433,6 @@ def check_timeout(phone):
     last_activity[phone] = now
     return False
 
-
-def registration_cooldown_remaining(phone):
-    last_try = registration_cooldown.get(phone, 0)
-    remaining = REGISTRATION_COOLDOWN - (time.time() - last_try)
-    return max(0, int(remaining))
-
-
-def format_remaining_hours(seconds):
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    return f"{hours} ساعة و{minutes} دقيقة"
-
-
-def can_start_registration(phone):
-    return registration_cooldown_remaining(phone) == 0
-
-
-def send_provider_specialty_menu(phone):
-    send_msg(phone,
-        "اختر تخصصك:\n\n"
-        "1 - الخدمات الهندسية\n"
-        "2 - الخدمات العقارية\n"
-        "3 - الخدمات الطلابية\n"
-        "4 - مناديب التوصيل\n"
-        "5 - شاليهات\n"
-        "6 - صهريج مياه\n"
-        "7 - اسطوانات الغاز\n"
-        "8 - سطحات\n\n"
-        "ارسل رقم تخصصك\n"
-        "0  - رجوع ↩️"
-    )
-
-
-def get_oldest_pending_registration():
-    pending = [r for r in registration_requests.values() if not r.get("approved") and time.time() < r.get("expires_at", 0)]
-    if not pending:
-        return None
-    pending.sort(key=lambda item: item.get("created_at", 0))
-    return pending[0]
-
-
-def send_registration_request(phone, provider_data):
-    registration_cooldown[phone] = time.time()
-
-    req_id = f"REG-{int(time.time())}-{phone[-4:]}"
-    registration_requests[req_id] = {
-        "id": req_id,
-        "phone": phone,
-        "data": provider_data,
-        "approved": False,
-        "created_at": time.time(),
-        "expires_at": time.time() + REGISTRATION_TIMEOUT,
-    }
-
-    send_msg(
-        phone,
-        "أرجو الاشتراك من أجل السماح بتلقي الطلبات ✨\n\n"
-        "تم استلام طلب تسجيلك، وبعد تأكيد الاشتراك سيتم اعتمادك كمقدم خدمة."
-    )
-
-    send_group(
-        SUBSCRIBERS_GROUP,
-        f"📥 طلب اشتراك جديد\n"
-        f"رقم الطلب: {req_id}\n"
-        f"الاسم/النشاط: {provider_data.get('name', '')}\n"
-        f"رقم الهوية: {provider_data.get('identity', '')}\n"
-        f"اللغة: {provider_data.get('language_name', '')}\n"
-        f"المدينة: {provider_data.get('city', '')}\n"
-        f"التخصص: {provider_data.get('specialty', '')}\n"
-        f"الرقم: {phone}\n\n"
-        f"أي تفاعل على هذه الرسالة داخل القروب يعني اعتماد المشترك.\n"
-        f"وللدقة يمكن إرسال: {req_id}"
-    )
-
-    def expire_request(local_req_id=req_id):
-        time.sleep(REGISTRATION_TIMEOUT)
-        req = registration_requests.get(local_req_id)
-        if not req or req.get("approved"):
-            return
-        registration_requests.pop(local_req_id, None)
-        send_msg(phone, "لم يتم اعتماد طلبك حالياً. يمكنك إعادة المحاولة بعد 24 ساعة.")
-        log_event("رفض_تسجيل_مقدم", phone, "انتهت مهلة اعتماد الاشتراك", local_req_id)
-
-    t = threading.Thread(target=expire_request)
-    t.daemon = True
-    t.start()
-
-
-def approve_registration_from_group(sender_phone, text):
-    req = None
-    for req_id, item in registration_requests.items():
-        if req_id in text and not item.get("approved") and time.time() < item.get("expires_at", 0):
-            req = item
-            break
-
-    if req is None:
-        req = get_oldest_pending_registration()
-
-    if req is None:
-        return
-
-    applicant_phone = req["phone"]
-    provider_data = req["data"]
-    provider_data["approved_by"] = sender_phone
-    provider_data["approved_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    registered_providers[applicant_phone] = provider_data
-    save_providers()
-
-    req["approved"] = True
-    registration_requests.pop(req["id"], None)
-
-    log_event(
-        "تسجيل_مقدم",
-        applicant_phone,
-        f"{provider_data.get('name', '')} | {provider_data.get('identity', '')} | {provider_data.get('language_name', '')} | {provider_data.get('city', '')} | {provider_data.get('specialty', '')} | اعتماد: {sender_phone}",
-        req["id"],
-    )
-
-    send_msg(
-        applicant_phone,
-        f"تم اعتمادك كمقدم خدمة ✅\n\n"
-        f"الاسم/النشاط: {provider_data.get('name', '')}\n"
-        f"رقم الهوية: {provider_data.get('identity', '')}\n"
-        f"اللغة: {provider_data.get('language_name', '')}\n"
-        f"المدينة: {provider_data.get('city', '')}\n"
-        f"التخصص: {provider_data.get('specialty', '')}\n\n"
-        f"أرسل 1 لاستلام أي طلب."
-    )
-
-    send_group(
-        SUBSCRIBERS_GROUP,
-        f"✅ تم اعتماد المشترك\n"
-        f"رقم الطلب: {req['id']}\n"
-        f"الاسم/النشاط: {provider_data.get('name', '')}\n"
-        f"الرقم: {applicant_phone}\n"
-        f"بواسطة: {sender_phone}"
-    )
-
 # ==========================================
 # القوائم
 # ==========================================
@@ -419,10 +445,12 @@ def menu_city(phone):
         "تريد خدمة؟ اختر مدينتك:\n"
         "1 - حائل 📍\n"
         "(مدن أخرى قريباً 🔜)\n\n"
-        "تريد تسجيل نشاطك التجاري؟\n"
-        "أرسل: 2\n\n"
-        "للشكاوى والاقتراحات\n"
-        "أرسل: 3"
+        "━━━━━━━━━━━━━━\n\n"
+        "تريد تسجيل نشاطك؟ أرسل: 2\n"
+        "Do you want to register? Send: 2\n"
+        "کیا آپ رجسٹر کرنا چاہتے ہیں؟ بھیجیں: 2\n\n"
+        "━━━━━━━━━━━━━━\n\n"
+        "للشكاوى والاقتراحات أرسل: 3"
     )
 
 def menu_city_more(phone):
@@ -551,142 +579,116 @@ def provider_terms(phone):
 # ==========================================
 def handle_provider_registration(phone, msg):
     session = provider_sessions.get(phone, {})
-    step = session.get("step", "")
+    step    = session.get("step", "")
 
-    if step == "language":
+    if step == "terms":
         if msg == "0":
             provider_sessions.pop(phone, None)
             user_sessions[phone] = {"step": "start"}
             menu_city(phone)
             return
-
-        if msg not in LANGUAGES:
-            send_msg(phone, "أرسل 1 أو 2 أو 3 لتحديد اللغة")
-            return
-
-        lang = LANGUAGES[msg]
-        provider_sessions[phone] = {
-            "step": "terms",
-            "language": lang["code"],
-            "language_name": lang["name"],
-        }
-        provider_terms(phone)
-
-    elif step == "terms":
-        if msg == "0":
-            provider_sessions[phone] = {"step": "language"}
-            menu_provider_language(phone)
-            return
-
         if msg == "1":
-            provider_sessions[phone].update({"step": "name"})
-            send_msg(phone, "سجل اسمك أو اسم نشاطك التجاري:\n\n0 - رجوع ↩️")
+            provider_sessions[phone] = {"step": "name"}
+            send_msg(phone, "ممتاز! 👍\n\nأرسل اسمك الكامل:")
         elif msg == "2":
-            send_msg(phone, "شكراً لاهتمامك. نتمنى انضمامك لاحقاً.")
+            send_msg(phone, "شكراً لاهتمامك\nنتمنى انضمامك مستقبلاً 🌟")
             provider_sessions.pop(phone, None)
-        else:
-            provider_terms(phone)
 
     elif step == "name":
-        if msg == "0":
-            provider_sessions[phone].update({"step": "terms"})
-            provider_terms(phone)
-            return
-
-        provider_sessions[phone].update({
-            "step": "identity",
-            "name": msg.strip(),
-        })
-        send_msg(phone, "أرسل رقم الهوية أو الإقامة:\n\n0 - رجوع ↩️")
-
-    elif step == "identity":
-        if msg == "0":
-            provider_sessions[phone].update({"step": "name"})
-            send_msg(phone, "سجل اسمك أو اسم نشاطك التجاري:\n\n0 - رجوع ↩️")
-            return
-
-        identity = msg.strip()
-        if not identity.isdigit() or len(identity) != 10:
-            send_msg(phone, "رقم الهوية أو الإقامة يجب أن يكون 10 أرقام.\n\n0 - رجوع ↩️")
-            return
-
-        provider_sessions[phone].update({
-            "step": "city",
-            "identity": identity,
-        })
+        provider_sessions[phone] = {"step": "city", "name": msg}
         menu_city(phone)
 
     elif step == "city":
         if msg == "0":
-            provider_sessions[phone].update({"step": "identity"})
-            send_msg(phone, "أرسل رقم الهوية أو الإقامة:\n\n0 - رجوع ↩️")
+            provider_sessions[phone].update({"step": "terms"})
+            provider_terms(phone)
             return
-
         if msg == "3":
             provider_sessions[phone].update({"step": "city_more"})
             menu_city_more(phone)
             return
-
         if msg not in ["1", "2"]:
-            send_msg(phone, "الرجاء إرسال 1 أو 2 أو 3")
+            send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3")
             return
-
-        provider_sessions[phone].update({
-            "step": "specialty",
-            "city": CITIES[msg],
-        })
-        send_provider_specialty_menu(phone)
+        provider_sessions[phone].update({"step": "specialty", "city": CITIES[msg]})
+        send_msg(phone,
+            "اختر تخصصك:\n\n"
+            "1 - الخدمات الهندسية\n"
+            "2 - الخدمات العقارية\n"
+            "3 - الخدمات الطلابية\n"
+            "4 - مناديب التوصيل\n"
+            "5 - شاليهات\n"
+            "6 - صهريج مياه\n"
+            "7 - اسطوانات الغاز\n"
+            "8 - سطحات\n\n"
+            "ارسل رقم تخصصك\n"
+            "0  - رجوع ↩️"
+        )
 
     elif step == "city_more":
         if msg == "0":
             provider_sessions[phone].update({"step": "city"})
             menu_city(phone)
             return
-
         if msg not in CITIES or msg in ["1", "2"]:
-            send_msg(phone, "الرجاء إرسال رقم من 3 إلى 25")
+            send_msg(phone, "الرجاء ارسال رقم من 3 الى 25")
             return
-
-        provider_sessions[phone].update({
-            "step": "specialty",
-            "city": CITIES[msg],
-        })
-        send_provider_specialty_menu(phone)
+        provider_sessions[phone].update({"step": "specialty", "city": CITIES[msg]})
+        send_msg(phone,
+            "اختر تخصصك:\n\n"
+            "1 - الخدمات الهندسية\n"
+            "2 - الخدمات العقارية\n"
+            "3 - الخدمات الطلابية\n"
+            "4 - مناديب التوصيل\n"
+            "5 - شاليهات\n"
+            "6 - صهريج مياه\n"
+            "7 - اسطوانات الغاز\n"
+            "8 - سطحات\n\n"
+            "ارسل رقم تخصصك\n"
+            "0  - رجوع ↩️"
+        )
 
     elif step == "specialty":
         if msg == "0":
             provider_sessions[phone].update({"step": "city"})
             menu_city(phone)
             return
-
         if msg not in SERVICES:
-            send_msg(phone, "الرجاء إرسال رقم من 1 إلى 8 أو 0 للرجوع")
+            send_msg(phone, "الرجاء ارسال رقم من 1 الى 8 أو 0 للرجوع")
             return
+        name      = session.get("name", "")
+        city      = session.get("city", "")
+        specialty = SERVICES[msg]
 
-        if not can_start_registration(phone):
-            remaining = format_remaining_hours(registration_cooldown_remaining(phone))
-            send_msg(phone, f"يمكنك تقديم طلب تسجيل واحد فقط كل 24 ساعة. المتبقي: {remaining}")
-            provider_sessions.pop(phone, None)
-            return
-
-        provider_data = {
-            "name": session.get("name", ""),
-            "identity": session.get("identity", ""),
-            "language": session.get("language", "ar"),
-            "language_name": session.get("language_name", "العربية"),
-            "city": session.get("city", ""),
-            "specialty": SERVICES[msg],
-            "status": "active",
-            "expiry": "",
+        registered_providers[phone] = {
+            "name":       name,
+            "city":       city,
+            "specialty":  specialty,
+            "status":     "active",
+            "expiry":     "",
             "registered": datetime.now().strftime("%Y-%m-%d"),
         }
+        save_providers()
+        log_event("تسجيل_مقدم", phone, f"{name} | {city} | {specialty}")
 
-        send_registration_request(phone, provider_data)
+        send_msg(phone,
+            f"تم تسجيلك بنجاح! 🎉\n\n"
+            f"الاسم: {name}\n"
+            f"المدينة: {city}\n"
+            f"التخصص: {specialty}\n\n"
+            f"ستصلك الطلبات مباشرة على رقمك\n"
+            f"أرسل 1 لاستلام أي طلب ✅"
+        )
+        send_group(ADMIN_GROUP,
+            f"✅ مقدم خدمة جديد\n"
+            f"الاسم: {name}\n"
+            f"المدينة: {city}\n"
+            f"التخصص: {specialty}\n"
+            f"الرقم: {phone}"
+        )
         provider_sessions.pop(phone, None)
 
 # ==========================================
-# قائمة مقدم الخدمة# ==========================================
-# قائمة مقدم الخدمة# ==========================================
 # قائمة مقدم الخدمة
 # ==========================================
 def handle_provider_menu(phone, msg, provider):
@@ -947,32 +949,93 @@ def handle_customer(phone, msg):
         menu_city(phone)
         user_sessions[phone] = {"step": "city"}
 
+    elif step == "choose_language":
+        lang_map = {"1": "ar", "2": "en", "3": "ur"}
+        if msg not in lang_map:
+            send_msg(phone, T["ar"]["choose_language"])
+            return
+        user_language[phone] = lang_map[msg]
+        save_language()
+        menu_city(phone)
+        user_sessions[phone] = {"step": "city"}
+
     elif step == "city":
         if msg == "1":
             city = "حائل"
             log_event("اختيار_مدينة", phone, f"اختار: {city}")
             user_sessions[phone] = {"step": "service", "city": city}
-            menu_service(phone, city)
+            send_msg(phone, t(phone, "choose_service"))
         elif msg == "2":
-            if not can_start_registration(phone):
-                remaining = format_remaining_hours(registration_cooldown_remaining(phone))
-                send_msg(phone, f"يمكنك تقديم طلب تسجيل واحد فقط كل 24 ساعة. المتبقي: {remaining}")
-                user_sessions[phone] = {"step": "start"}
-                return
-            provider_sessions[phone] = {"step": "language"}
-            menu_provider_language(phone)
-            user_sessions[phone] = {"step": "start"}
+            # تسجيل كمقدم خدمة — النظام الجديد
+            user_sessions[phone] = {"step": "reg_city"}
+            send_msg(phone, t(phone, "reg_city"))
         elif msg == "3":
-            # شكاوى واقتراحات
             user_sessions[phone] = {"step": "complaint"}
-            send_msg(phone, "اكتب شكواك أو اقتراحك وسيتم مراجعته فوراً:\n\n0 - رجوع ↩️")
+            send_msg(phone, t(phone, "complaint_prompt"))
+        elif msg == "4":
+            user_sessions[phone] = {"step": "choose_language"}
+            send_msg(phone, T["ar"]["choose_language"])
         else:
-            send_msg(phone,
-                "الرجاء ارسال:\n"
-                "1 - لطلب خدمة\n"
-                "2 - للتسجيل كمقدم خدمة\n"
-                "3 - للشكاوى والاقتراحات"
-            )
+            send_msg(phone, t(phone, "invalid"))
+
+    elif step == "reg_city":
+        if msg == "0":
+            user_sessions[phone] = {"step": "city"}
+            menu_city(phone)
+            return
+        if msg != "1":
+            send_msg(phone, t(phone, "reg_city"))
+            return
+        user_sessions[phone] = {"step": "reg_service", "reg_city": "حائل"}
+        send_msg(phone, t(phone, "reg_service"))
+
+    elif step == "reg_service":
+        if msg == "0":
+            user_sessions[phone] = {"step": "reg_city"}
+            send_msg(phone, t(phone, "reg_city"))
+            return
+        if msg not in SERVICES:
+            send_msg(phone, t(phone, "reg_service"))
+            return
+        user_sessions[phone].update({"step": "reg_info", "reg_service": SERVICES[msg]})
+        send_msg(phone, t(phone, "reg_info"))
+
+    elif step == "reg_info":
+        if msg == "0":
+            user_sessions[phone] = {"step": "reg_service", "reg_city": user_sessions[phone].get("reg_city", "حائل")}
+            send_msg(phone, t(phone, "reg_service"))
+            return
+        # تخزين البيانات وإرسالها للقروب
+        reg_city    = user_sessions[phone].get("reg_city", "حائل")
+        reg_service = user_sessions[phone].get("reg_service", "")
+        pending_approval[phone] = {
+            "name":      msg,
+            "city":      reg_city,
+            "service":   reg_service,
+            "phone":     phone,
+            "timestamp": time.time(),
+        }
+        save_pending()
+        # إرسال للقروب
+        send_group(SUBSCRIBERS_GROUP,
+            f"🆕 طلب تسجيل جديد\n"
+            f"━━━━━━━━━━━━━━\n"
+            f"الاسم/النشاط: {msg}\n"
+            f"المدينة: {reg_city}\n"
+            f"التخصص: {reg_service}\n"
+            f"الرقم: {phone}\n"
+            f"━━━━━━━━━━━━━━\n"
+            f"تفاعل مع هذه الرسالة لاعتماده ✅"
+        )
+        # رد على المقدم
+        send_msg(phone, t(phone, "reg_pending"))
+        # حالة صمت 24 ساعة
+        user_sessions[phone] = {"step": "reg_pending"}
+        log_event("طلب_تسجيل", phone, f"{reg_city} | {reg_service} | {msg}")
+
+    elif step == "reg_pending":
+        # صمت تام — تجاهل كل الرسائل
+        return
 
     elif step == "city_more":
         if msg == "0":
@@ -1066,12 +1129,12 @@ def handle_customer(phone, msg):
 
     elif step == "complaint":
         if msg == "0":
-            user_sessions[phone] = {"step": "admin_menu"}
-            menu_admin_options(phone)
+            user_sessions[phone] = {"step": "city"}
+            menu_city(phone)
             return
         log_event("شكوى", phone, msg)
         send_group(ADMIN_GROUP, f"🚨 شكوى\nرقم العميل: {phone}\nالشكوى: {msg}")
-        send_msg(phone, "تم استلام شكواك ✅\nسيتم التواصل معك قريباً")
+        send_msg(phone, t(phone, "complaint_done"))
         user_sessions[phone] = {"step": "start"}
 
     elif step == "waiting":
@@ -1626,33 +1689,55 @@ def webhook():
 
         # ✅ رسائل القروبات
         if "@g.us" in chat_id:
-            if mt == "textMessage":
-                text = md.get("textMessageData", {}).get("textMessage", "")
-            elif mt == "extendedTextMessage":
-                text = md.get("extendedTextMessageData", {}).get("text", "")
-            else:
-                return jsonify({"status": "ok"}), 200
 
-            if not text:
-                return jsonify({"status": "ok"}), 200
-
-            text = normalize(text)
-            sender_phone = sender.replace("@c.us", "")
-
+            # قروب المشتركين — أي تفاعل يعتمد المقدم
             if chat_id == SUBSCRIBERS_GROUP:
-                print(f"📩 قروب المشتركين | من: {sender_phone} | النص: {text}")
-                approve_registration_from_group(sender_phone, text)
+                sender_phone = sender.replace("@c.us", "")
+                # أي رسالة في القروب = تفاعل = اعتماد المقدم الأخير في الانتظار
+                # نبحث عن المقدمين المنتظرين
+                if mt in ["textMessage", "extendedTextMessage", "reactionMessage"]:
+                    # البحث عن مقدم منتظر لم يمض على طلبه أكثر من 24 ساعة
+                    approved_phones = []
+                    for p, data in list(pending_approval.items()):
+                        if time.time() - data.get("timestamp", 0) < 24 * 3600:
+                            approved_phones.append(p)
+                    for p in approved_phones:
+                        data = pending_approval.pop(p)
+                        registered_providers[p] = {
+                            "name":       data.get("name", ""),
+                            "city":       data.get("city", "حائل"),
+                            "specialty":  data.get("service", ""),
+                            "status":     "active",
+                            "expiry":     "",
+                            "registered": datetime.now().strftime("%Y-%m-%d"),
+                        }
+                        save_providers()
+                        save_pending()
+                        user_sessions[p] = {"step": "start"}
+                        send_msg(p, t(p, "reg_approved"))
+                        log_event("اعتماد_مقدم", p, data.get("name", ""))
+                        print(f"✅ تم اعتماد: {p}")
                 return jsonify({"status": "ok"}), 200
 
             if chat_id == CONTROL_GROUP:
+                if mt == "textMessage":
+                    text = md.get("textMessageData", {}).get("textMessage", "")
+                elif mt == "extendedTextMessage":
+                    text = md.get("extendedTextMessageData", {}).get("text", "")
+                else:
+                    return jsonify({"status": "ok"}), 200
+                if not text:
+                    return jsonify({"status": "ok"}), 200
+                text         = normalize(text)
+                sender_phone = sender.replace("@c.us", "")
                 print(f"📩 قروب تحكم | من: {sender_phone} | النص: {text}")
+                # تسجيل الرقم كأدمن مصرح
                 ADMIN_PHONES.add(sender_phone)
+                # البوت يرد على المرسل مباشرة برسالة خاصة
                 ctrl_session = control_sessions.get(sender_phone, {"step": "start"})
-                ctrl_step = ctrl_session.get("step", "start")
+                ctrl_step    = ctrl_session.get("step", "start")
                 if text == "تحكم" or ctrl_step not in ["start", ""]:
                     handle_control(sender_phone, text)
-                return jsonify({"status": "ok"}), 200
-
             return jsonify({"status": "ok"}), 200
 
         # رسالة صوتية
@@ -1702,7 +1787,8 @@ def webhook():
             customer_steps = [
                 "city", "city_more", "service", "description", "terms", "waiting",
                 "waiting_choice", "provider_sent", "reason", "price", "custom_reason",
-                "admin_menu", "complaint"
+                "admin_menu", "complaint", "choose_language",
+                "reg_city", "reg_service", "reg_info", "reg_pending"
             ]
             if step in customer_steps:
                 handle_customer(phone, text)
@@ -1739,7 +1825,7 @@ def export_data():
         # ── ورقة مقدمي الخدمة ──
         ws1 = wb.active
         ws1.title = "مقدمو الخدمة"
-        headers1 = ["الرقم", "الاسم/النشاط", "رقم الهوية", "اللغة", "المدينة", "التخصص", "الحالة", "الاشتراك", "تاريخ التسجيل"]
+        headers1 = ["الرقم", "الاسم", "المدينة", "التخصص", "الحالة", "الاشتراك", "تاريخ التسجيل"]
         for col, h in enumerate(headers1, 1):
             cell = ws1.cell(row=1, column=col, value=h)
             cell.font = Font(bold=True, color="FFFFFF")
@@ -1748,13 +1834,11 @@ def export_data():
         for row, (phone, d) in enumerate(registered_providers.items(), 2):
             ws1.cell(row=row, column=1, value=phone)
             ws1.cell(row=row, column=2, value=d.get("name", ""))
-            ws1.cell(row=row, column=3, value=d.get("identity", ""))
-            ws1.cell(row=row, column=4, value=d.get("language_name", ""))
-            ws1.cell(row=row, column=5, value=d.get("city", ""))
-            ws1.cell(row=row, column=6, value=d.get("specialty", ""))
-            ws1.cell(row=row, column=7, value="نشط" if d.get("status") == "active" else "موقوف")
-            ws1.cell(row=row, column=8, value=d.get("expiry", "غير محدد"))
-            ws1.cell(row=row, column=9, value=d.get("registered", ""))
+            ws1.cell(row=row, column=3, value=d.get("city", ""))
+            ws1.cell(row=row, column=4, value=d.get("specialty", ""))
+            ws1.cell(row=row, column=5, value="نشط" if d.get("status") == "active" else "موقوف")
+            ws1.cell(row=row, column=6, value=d.get("expiry", "غير محدد"))
+            ws1.cell(row=row, column=7, value=d.get("registered", ""))
         for col in ws1.columns:
             ws1.column_dimensions[col[0].column_letter].width = 20
 
