@@ -93,18 +93,19 @@ PROVIDERS_FILE = f"{DATA_PATH}/providers.json"
 CLIENTS_FILE   = f"{DATA_PATH}/clients.json"
 ORDERS_FILE    = f"{DATA_PATH}/orders.json"
 COUNTER_FILE   = f"{DATA_PATH}/counter.json"
+LOG_FILE       = f"{DATA_PATH}/activity_log.json"
 
 # ==========================================
 # البيانات في الذاكرة
 # ==========================================
 user_sessions     = {}
+activity_log      = []  # سجل العمليات
 provider_sessions = {}
 control_sessions  = {}
 registered_clients   = set()
 registered_providers = {}
 pending_orders    = {}
 blocked_users     = {}
-provider_cooldown = {}
 order_counter     = [1000]
 last_activity     = {}
 SESSION_TIMEOUT   = 2 * 60  # دقيقتان
@@ -128,6 +129,10 @@ def load_data():
             with open(COUNTER_FILE, "r", encoding="utf-8") as f:
                 order_counter[0] = json.load(f).get("counter", 1000)
             print(f"✅ تم تحميل العداد: {order_counter[0]}")
+        if os.path.exists(LOG_FILE):
+            with open(LOG_FILE, "r", encoding="utf-8") as f:
+                activity_log.extend(json.load(f))
+            print(f"✅ تم تحميل {len(activity_log)} سجل")
         if os.path.exists(ORDERS_FILE):
             with open(ORDERS_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
@@ -135,9 +140,8 @@ def load_data():
                 if not od.get("taken") and od.get("providers"):
                     pending_orders[oid] = od
                     # إعادة تشغيل الطلبات المعلقة
-                    od["taken"]            = False
-                    od["current_provider"] = None
-                    threading.Timer(2, send_to_next, args=[oid]).start()
+                    od["taken"] = False
+                    threading.Timer(2, broadcast_order, args=[oid]).start()
             print(f"✅ تم تحميل {len(pending_orders)} طلب معلق")
     except Exception as e:
         print(f"خطأ تحميل: {e}")
@@ -173,6 +177,24 @@ def save_orders():
             json.dump(pending_orders, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"خطأ حفظ طلبات: {e}")
+
+def log_event(event_type, phone, details="", order_id=""):
+    """تسجيل كل حدث فوري"""
+    entry = {
+        "time":       datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "type":       event_type,
+        "phone":      phone,
+        "order_id":   order_id,
+        "details":    details,
+    }
+    activity_log.append(entry)
+    # حفظ فوري
+    try:
+        os.makedirs(DATA_PATH, exist_ok=True)
+        with open(LOG_FILE, "w", encoding="utf-8") as f:
+            json.dump(activity_log[-5000:], f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"خطأ حفظ سجل: {e}")
 
 # ==========================================
 # دوال الإرسال
@@ -475,6 +497,7 @@ def handle_provider_registration(phone, msg):
             "registered": datetime.now().strftime("%Y-%m-%d"),
         }
         save_providers()
+        log_event("تسجيل_مقدم", phone, f"{name} | {city} | {specialty}")
 
         send_msg(phone,
             f"تم تسجيلك بنجاح! 🎉\n\n"
@@ -556,12 +579,11 @@ def create_order(phone, city, service, description=""):
         "blocked":          [],
         "taken":            False,
         "providers":        matched,
-        "queue_index":      0,
-        "current_provider": None,
         "created":          datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
     save_counter()
     save_orders()
+    log_event("طلب_جديد", phone, f"{city} | {service} | {description}", oid)
 
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
 
@@ -572,11 +594,6 @@ def create_order(phone, city, service, description=""):
     )
 
     if not matched:
-        send_msg(phone,
-            "عذراً\n"
-            "لا يوجد مقدم خدمة متاح الآن\n"
-            "سيتم التواصل معك في أقرب وقت"
-        )
         send_group(ADMIN_GROUP,
             f"⚠️ لا يوجد مقدم خدمة\n"
             f"رقم الطلب: {oid}\n"
@@ -584,31 +601,53 @@ def create_order(phone, city, service, description=""):
             f"الخدمة: {service}\n"
             f"العميل: {phone}"
         )
+        def ask_wait_or_cancel_new(cp=phone, oid=oid):
+            time.sleep(5 * 60)
+            if oid not in pending_orders:
+                return
+            if pending_orders.get(oid, {}).get("taken"):
+                return
+            user_sessions[cp] = {"step": "waiting_choice", "order_id": oid}
+            send_msg(cp,
+                "لم نجد لك مقدم خدمة حتى الآن 😔\n\n"
+                "1 - انتظار ⏳\n"
+                "2 - إلغاء الطلب ❌"
+            )
+        threading.Thread(target=ask_wait_or_cancel_new).start()
         return
 
-    send_to_next(oid)
+    broadcast_order(oid)
 
-def send_to_next(oid):
-    """إرسال الطلب للمقدم التالي في الطابور"""
+def broadcast_order(oid):
+    """إرسال الطلب لكل المقدمين المتاحين في نفس الوقت"""
     if oid not in pending_orders:
         return
     od       = pending_orders[oid]
     providers = od.get("providers", [])
-    idx      = od.get("queue_index", 0)
+    blocked  = od.get("blocked", [])
+    cp       = od["phone"]
 
-    while idx < len(providers):
-        p = providers[idx]
-        if p in od.get("blocked", []):
-            idx += 1
-            continue
-        if p in provider_cooldown and time.time() < provider_cooldown[p]:
-            idx += 1
-            continue
+    # المقدمون المتاحون (غير محظورين وغير في cooldown)
+    available = [
+        p for p in providers
+        if p not in blocked
 
-        od["queue_index"]     = idx
-        od["current_provider"] = p
+    ]
 
-        desc = f"الوصف: {od['description']}\n" if od.get("description") else ""
+    if not available:
+        # لا يوجد مقدم متاح
+        send_group(ADMIN_GROUP,
+            f"⚠️ طلب بدون مستجيب\n"
+            f"رقم الطلب: {oid}\n"
+            f"المدينة: {od['city']}\n"
+            f"الخدمة: {od['service']}\n"
+            f"العميل: {cp}"
+        )
+
+    desc = f"الوصف: {od['description']}\n" if od.get("description") else ""
+
+    # إرسال لكل المقدمين في نفس الوقت
+    for p in available:
         send_msg(p,
             f"طلب جديد 🔔\n"
             f"رقم الطلب: {oid}\n"
@@ -621,61 +660,42 @@ def send_to_next(oid):
             f"آرڈر لینے کے لیے بھیجیں: 1\n"
             f"━━━━━━━━━━━━━━"
         )
+        time.sleep(0.3)
 
-        # انتقال تلقائي بعد 5 دقائق
-        threading.Timer(5 * 60, timeout_order, args=[oid, p]).start()
-        return
+    # بعد 5 دقائق — لو لم يُقبل الطلب اسأل العميل
+    def check_after_5min(cp=cp, oid=oid):
+        time.sleep(5 * 60)
+        if oid not in pending_orders:
+            return
+        if pending_orders.get(oid, {}).get("taken"):
+            return
+        user_sessions[cp] = {"step": "waiting_choice", "order_id": oid}
+        send_msg(cp,
+            "لم نجد لك مقدم خدمة حتى الآن 😔\n\n"
+            "1 - انتظار ⏳\n"
+            "2 - إلغاء الطلب ❌"
+        )
+    threading.Thread(target=check_after_5min).start()
 
-    # لا يوجد مقدم متاح
-    cp = od["phone"]
-    send_msg(cp,
-        "عذراً\nلم يتمكن أي مقدم خدمة من الاستجابة الآن\n"
-        "سيتواصل معك فريق الإدارة قريباً"
-    )
-    send_group(ADMIN_GROUP,
-        f"⚠️ طلب بدون مستجيب\n"
-        f"رقم الطلب: {oid}\n"
-        f"المدينة: {od['city']}\n"
-        f"الخدمة: {od['service']}\n"
-        f"العميل: {cp}"
-    )
-
-def timeout_order(oid, p_phone):
-    """انتهى وقت الانتظار — انتقل للمقدم التالي"""
-    if oid not in pending_orders:
-        return
-    od = pending_orders[oid]
-    if od.get("taken") or od.get("current_provider") != p_phone:
-        return
-    od["blocked"].append(p_phone)
-    od["queue_index"] = od.get("queue_index", 0) + 1
-    send_to_next(oid)
 
 # ==========================================
 # استلام الطلب من مقدم الخدمة
 # ==========================================
 def handle_provider_accept(phone):
-    # فحص cooldown
-    if phone in provider_cooldown and time.time() < provider_cooldown[phone]:
-        remaining_m = int((provider_cooldown[phone] - time.time()) / 60)
-        remaining_s = int((provider_cooldown[phone] - time.time()) % 60)
-        send_msg(phone,
-            f"يمكنك استلام الطلب القادم بعد:\n"
-            f"{remaining_m} دقيقة و{remaining_s} ثانية ⏱️"
-        )
-        return
-
     # البحث عن طلب مرسل لهذا المقدم
     for oid, od in list(pending_orders.items()):
         if od.get("taken"):
             continue
-        if od.get("current_provider") != phone:
+        # المقدم يجب أن يكون ضمن قائمة المقدمين للطلب وغير محظور
+        if phone not in od.get("providers", []):
+            continue
+        if phone in od.get("blocked", []):
             continue
 
         cp = od["phone"]
         od["taken"] = True
         od["blocked"].append(phone)
-        provider_cooldown[phone] = time.time() + 5 * 60
+        log_event("قبول_طلب", phone, f"مقدم قبل الطلب | عميل: {cp}", oid)
 
         provider_name = registered_providers.get(phone, {}).get("name", "مقدم الخدمة")
 
@@ -719,11 +739,7 @@ def resend_order(phone, oid, reason, price=None):
         return
     od = pending_orders[oid]
     od["attempts"] += 1
-    od["taken"]     = False
-    if od.get("current_provider"):
-        od["blocked"].append(od["current_provider"])
-    od["queue_index"]      = 0
-    od["current_provider"] = None
+    od["taken"] = False
     if price:
         od["last_price"] = price
 
@@ -736,7 +752,7 @@ def resend_order(phone, oid, reason, price=None):
     )
     user_sessions[phone] = {"step": "waiting", "order_id": oid}
     save_orders()
-    send_to_next(oid)
+    broadcast_order(oid)
 
 # ==========================================
 # سيناريو العميل
@@ -757,6 +773,7 @@ def handle_customer(phone, msg):
     step = session.get("step", "start")
 
     if step == "start":
+        log_event("رسالة_جديدة", phone, "عميل جديد بدأ المحادثة")
         menu_city(phone)
         user_sessions[phone] = {"step": "city"}
 
@@ -769,6 +786,7 @@ def handle_customer(phone, msg):
             send_msg(phone, "الرجاء ارسال 1 أو 2 أو 3")
             return
         city = CITIES[msg]
+        log_event("اختيار_مدينة", phone, f"اختار: {city}")
         user_sessions[phone] = {"step": "service", "city": city}
         menu_service(phone, city)
 
@@ -781,6 +799,7 @@ def handle_customer(phone, msg):
             send_msg(phone, "الرجاء ارسال رقم من 3 الى 25")
             return
         city = CITIES[msg]
+        log_event("اختيار_مدينة", phone, f"اختار: {city}")
         user_sessions[phone] = {"step": "service", "city": city}
         menu_service(phone, city)
 
@@ -795,6 +814,7 @@ def handle_customer(phone, msg):
             menu_admin_options(phone)
         elif msg in SERVICES:
             service = SERVICES[msg]
+            log_event("اختيار_خدمة", phone, f"{city} | {service}")
             user_sessions[phone] = {"step": "description", "city": city, "service": service}
             send_msg(phone,
                 f"اخترت: {service} في {city}\n\n"
@@ -872,12 +892,37 @@ def handle_customer(phone, msg):
             user_sessions[phone] = {"step": "admin_menu"}
             menu_admin_options(phone)
             return
+        log_event("شكوى", phone, msg)
         send_group(ADMIN_GROUP, f"🚨 شكوى\nرقم العميل: {phone}\nالشكوى: {msg}")
         send_msg(phone, "تم استلام شكواك ✅\nسيتم التواصل معك قريباً")
         user_sessions[phone] = {"step": "start"}
 
     elif step == "waiting":
-        send_msg(phone, "طلبك قيد المعالجة ⏳\nسيتم التواصل معك خلال 5 دقائق")
+        # تجاهل كامل — لا رد
+        return
+
+    elif step == "waiting_choice":
+        oid = session.get("order_id")
+        if msg == "1":
+            # ينتظر — نعيد البث لكل المقدمين
+            user_sessions[phone] = {"step": "waiting", "order_id": oid}
+            send_msg(phone, "شكراً لصبرك ⏳\nسنواصل البحث عن مقدم خدمة لك")
+            if oid in pending_orders:
+                pending_orders[oid]["blocked"] = []
+                broadcast_order(oid)
+        elif msg == "2":
+            # إلغاء الطلب
+            log_event("إلغاء_طلب", phone, "العميل ألغى بعد انتهاء الوقت", oid)
+            pending_orders.pop(oid, None)
+            save_orders()
+            user_sessions[phone] = {"step": "start"}
+            send_msg(phone, "تم إلغاء طلبك ✅\nيمكنك إرسال طلب جديد في أي وقت")
+        else:
+            send_msg(phone,
+                "لم نجد لك مقدم خدمة حتى الآن\n\n"
+                "1 - انتظار ⏳\n"
+                "2 - إلغاء الطلب ❌"
+            )
 
     elif step == "provider_sent":
         oid = session.get("order_id")
@@ -885,6 +930,7 @@ def handle_customer(phone, msg):
 
         if msg == "1":
             send_msg(phone, "ممتاز! نتمنى لك تجربة رائعة مع مذكرة سلمان 🌟")
+            log_event("اتفاق_ناجح", phone, "تم الاتفاق مع مقدم الخدمة", oid)
             pending_orders.pop(oid, None)
             save_orders()
             user_sessions[phone] = {"step": "start"}
@@ -893,6 +939,7 @@ def handle_customer(phone, msg):
             attempts = od.get("attempts", 1)
             if attempts >= 3:
                 blocked_users[phone] = time.time() + 15 * 60
+                log_event("حظر_مؤقت", phone, "تم الحظر 15 دقيقة بعد 3 محاولات فاشلة", oid)
                 send_msg(phone, "تم استنفاد المحاولات\nحسابك موقوف 15 دقيقة ⏱️")
                 pending_orders.pop(oid, None)
                 save_orders()
@@ -1472,8 +1519,8 @@ def webhook():
             session = user_sessions.get(phone, {"step": "provider_main"})
             step    = session.get("step", "provider_main")
             customer_steps = [
-                "city", "service", "description", "terms", "waiting",
-                "provider_sent", "reason", "price", "custom_reason",
+                "city", "city_more", "service", "description", "terms", "waiting",
+                "waiting_choice", "provider_sent", "reason", "price", "custom_reason",
                 "admin_menu", "complaint"
             ]
             if step in customer_steps:
@@ -1562,6 +1609,23 @@ def export_data():
             ws3.cell(row=row, column=8, value=od.get("created", ""))
         for col in ws3.columns:
             ws3.column_dimensions[col[0].column_letter].width = 20
+
+        # ── ورقة سجل العمليات ──
+        ws4 = wb.create_sheet("سجل العمليات")
+        headers4 = ["الوقت", "نوع الحدث", "الرقم", "رقم الطلب", "التفاصيل"]
+        for col, h in enumerate(headers4, 1):
+            cell = ws4.cell(row=1, column=col, value=h)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="4a1a7a")
+            cell.alignment = Alignment(horizontal="center")
+        for row, entry in enumerate(reversed(activity_log), 2):
+            ws4.cell(row=row, column=1, value=entry.get("time", ""))
+            ws4.cell(row=row, column=2, value=entry.get("type", ""))
+            ws4.cell(row=row, column=3, value=entry.get("phone", ""))
+            ws4.cell(row=row, column=4, value=entry.get("order_id", ""))
+            ws4.cell(row=row, column=5, value=entry.get("details", ""))
+        for col in ws4.columns:
+            ws4.column_dimensions[col[0].column_letter].width = 22
 
         # حفظ في الذاكرة وإرسال
         output = io.BytesIO()
