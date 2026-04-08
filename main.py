@@ -28,7 +28,7 @@ def normalize(text):
 INSTANCE_ID = os.environ.get("INSTANCE_ID", "7107579979")
 API_TOKEN   = os.environ.get("API_TOKEN", "5c1dd144d2ff4079b484b1362e763bc18dc5ebfc12e049acbe")
 BASE_URL    = f"https://7107.api.greenapi.com/waInstance{INSTANCE_ID}"
-BANK_ACCOUNT   = "SA2880000595608016106214"
+BANK_ACCOUNT   = "SA6778000000001294485647"
 EXPORT_SECRET  = os.environ.get("EXPORT_SECRET", "ms-export-2026")
 ADMIN_GROUP       = "120363406973437339@g.us"
 CONTROL_GROUP     = "120363425363360676@g.us"
