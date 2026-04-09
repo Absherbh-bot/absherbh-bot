@@ -853,15 +853,28 @@ def handle_provider_menu(phone, msg, provider):
             user_sessions[phone] = {"step": "city"}
             send_msg(phone, t(phone, "welcome"))
         elif msg == "2":
-            expiry = provider.get("expiry", "غير محدد")
+            expiry = provider.get("expiry", "")
             status = "مفعّل ✅" if provider.get("status") == "active" else "موقوف ⚠️"
+            if expiry:
+                try:
+                    days_left = (datetime.strptime(expiry, "%Y-%m-%d") - datetime.now()).days
+                    if days_left > 0:
+                        sub_text = f"⏳ متبقي لك {days_left} يوم"
+                    elif days_left == 0:
+                        sub_text = "⚠️ اشتراكك ينتهي اليوم"
+                    else:
+                        sub_text = f"🚫 انتهى الاشتراك منذ {abs(days_left)} يوم"
+                except:
+                    sub_text = f"الاشتراك: {expiry}"
+            else:
+                sub_text = "الاشتراك: غير محدد"
             send_msg(phone,
                 f"معلومات حسابك:\n\n"
                 f"الاسم: {provider.get('name', '')}\n"
                 f"المدينة: {provider.get('city', '')}\n"
                 f"التخصص: {provider.get('specialty', '')}\n"
                 f"الحالة: {status}\n"
-                f"الاشتراك: {expiry}\n\n"
+                f"{sub_text}\n\n"
                 f"0 - رجوع ↩️"
             )
             user_sessions[phone] = {"step": "provider_account"}
@@ -1161,12 +1174,13 @@ def webhook():
                         approved.append(p)
                 for p in approved:
                     d = pending_approval.pop(p)
+                    expiry_date = (datetime.now() + __import__('datetime').timedelta(days=28)).strftime("%Y-%m-%d")
                     registered_providers[p] = {
                         "name":       d.get("name", ""),
                         "city":       d.get("city", "حائل"),
                         "specialty":  d.get("service", ""),
                         "status":     "active",
-                        "expiry":     "",
+                        "expiry":     expiry_date,
                         "registered": datetime.now().strftime("%Y-%m-%d"),
                     }
                     save_providers()
