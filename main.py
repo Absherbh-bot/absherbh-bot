@@ -850,9 +850,7 @@ def handle_provider_menu(phone, msg, provider):
 
     if step == "provider_main":
         if msg == "1":
-            user_sessions[phone] = {"step": "city"}
-            send_msg(phone, t(phone, "welcome"))
-        elif msg == "2":
+            # حسابي
             expiry = provider.get("expiry", "")
             status = "مفعّل ✅" if provider.get("status") == "active" else "موقوف ⚠️"
             if expiry:
@@ -875,28 +873,47 @@ def handle_provider_menu(phone, msg, provider):
                 f"التخصص: {provider.get('specialty', '')}\n"
                 f"الحالة: {status}\n"
                 f"{sub_text}\n\n"
+                f"1 - تجديد الاشتراك 🔄\n"
                 f"0 - رجوع ↩️"
             )
             user_sessions[phone] = {"step": "provider_account"}
-        elif msg == "3":
+        elif msg == "2":
             user_sessions[phone] = {"step": "provider_contact"}
             send_msg(phone, "اكتب رسالتك للإدارة:\n\n0 - رجوع ↩️")
         else:
             send_msg(phone,
                 f"مرحباً {provider.get('name', '')} 👋\n\n"
-                "1 - طلب جديد (كعميل)\n"
-                "2 - حسابي\n"
-                "3 - تواصل مع الإدارة"
+                "1 - حسابي 👤\n"
+                "2 - تواصل مع الإدارة\n"
             )
 
     elif step == "provider_account":
-        user_sessions[phone] = {"step": "provider_main"}
-        send_msg(phone,
-            f"مرحباً {provider.get('name', '')} 👋\n\n"
-            "1 - طلب جديد (كعميل)\n"
-            "2 - حسابي\n"
-            "3 - تواصل مع الإدارة"
-        )
+        if msg == "1":
+            # تجديد الاشتراك
+            send_msg(phone,
+                f"تجديد الاشتراك 🔄\n\n"
+                f"💰 20 ريال لكل 28 يوم\n\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"رقم الحساب:\n{BANK_ACCOUNT}\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"أرسل إيصال التحويل للإدارة\n"
+                f"وسيتم تجديد اشتراكك خلال 24 ساعة 🙏"
+            )
+            send_group(ADMIN_GROUP,
+                f"🔄 طلب تجديد اشتراك\n"
+                f"الاسم: {provider.get('name', '')}\n"
+                f"الرقم: {phone}\n"
+                f"التخصص: {provider.get('specialty', '')}\n"
+                f"المدينة: {provider.get('city', '')}"
+            )
+            user_sessions[phone] = {"step": "provider_main"}
+        else:
+            user_sessions[phone] = {"step": "provider_main"}
+            send_msg(phone,
+                f"مرحباً {provider.get('name', '')} 👋\n\n"
+                "1 - حسابي 👤\n"
+                "2 - تواصل مع الإدارة\n"
+            )
 
     elif step == "provider_contact":
         if msg == "0":
@@ -1249,17 +1266,15 @@ def webhook():
                 "custom_reason", "complaint", "choose_language",
                 "reg_city", "reg_service", "reg_info", "reg_pending",
             }
+            provider_menu_steps = {"provider_main", "provider_account", "provider_contact"}
             if step in client_steps:
                 handle_customer(phone, text)
-            elif step == "provider_main":
-                # المقدم في قائمته الرئيسية — أرسل للقائمة أولاً
-                handle_provider_menu(phone, text, registered_providers[phone])
-            elif text == "1" and step not in client_steps:
-                # المقدم ينتظر طلب ويضغط 1 لقبوله
+            elif text == "1" and step not in provider_menu_steps:
+                # المقدم يقبل طلب وصله
                 handle_provider_accept(phone)
             else:
-                check_timeout(phone)
-                user_sessions[phone] = {"step": "provider_main"}
+                if step not in provider_menu_steps:
+                    user_sessions[phone] = {"step": "provider_main"}
                 handle_provider_menu(phone, text, registered_providers[phone])
             return jsonify({"status": "ok"}), 200
 
