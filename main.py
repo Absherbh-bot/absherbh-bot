@@ -58,7 +58,7 @@ T = {
             'منصتك الذكية للتواصل مع مقدمي الخدمات في مدينتك\n'
             'لاختيار الخدمة حدد مدينتك\n'
             '1 - حائل 📍\n'
-            '(المدن الأخرى قريباً 🔜)\n'
+            '_(مدن أخرى قريباً 🔜)_\n'
             '2 - الإدارة\n'
             '3 - اختر لغتك / Change language / زبان تبدیل کریں'
         ),
@@ -136,7 +136,7 @@ T = {
             'Your smart platform to connect with service providers in your city\n'
             'Choose your city to select a service\n'
             '1 - Hail 📍\n'
-            '(More cities coming soon 🔜)\n'
+            '_(More cities coming soon 🔜)_\n'
             '2 - Administration\n'
             '3 - اختر لغتك / Change language / زبان تبدیل کریں'
         ),
@@ -209,7 +209,7 @@ T = {
             'آپ کے شہر میں سروس فراہم کنندگان سے جڑنے کا ذہین پلیٹ فارم\n'
             'سروس چننے کے لیے اپنا شہر منتخب کریں\n'
             '1 - حائل 📍\n'
-            '(مزید شہر جلد 🔜)\n'
+            '_(مزید شہر جلد 🔜)_\n'
             '2 - انتظامیہ\n'
             '3 - اختر لغتك / Change language / زبان تبدیل کریں'
         ),
@@ -529,10 +529,7 @@ def broadcast_order(oid):
             f"المدينة: {od['city']}\n"
             f"الخدمة: {od['service']}\n"
             f"{desc}"
-            f"لاستلام الطلب أرسل: 1\n"
-            f"To accept send: 1\n"
-            f"آرڈر لینے کے لیے بھیجیں: 1\n"
-            f"━━━━━━━━━━━━━━"
+            f"لاستلام الطلب أرسل: 1"
         )
         time.sleep(0.3)
     def check_5min(cp=cp, oid=oid):
