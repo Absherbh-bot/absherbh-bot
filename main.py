@@ -3,7 +3,7 @@ import time
 import json
 import requests
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_file
 import io
 
@@ -1179,28 +1179,30 @@ def webhook():
         # ── القروبات ──
         if "@g.us" in chat_id:
             # قروب المشتركين — أي رسالة = اعتماد المقدمين المنتظرين
-            if chat_id == SUBSCRIBERS_GROUP and mt in ["textMessage", "extendedTextMessage"]:
-                approved = []
+            if chat_id == SUBSCRIBERS_GROUP:
+                # أي نوع رسالة في القروب = اعتماد كل المقدمين المنتظرين
+                approved_count = 0
                 for p, d in list(pending_approval.items()):
                     if time.time() - d.get("timestamp", 0) < 24 * 3600:
-                        approved.append(p)
-                for p in approved:
-                    d = pending_approval.pop(p)
-                    expiry_date = (datetime.now() + __import__('datetime').timedelta(days=28)).strftime("%Y-%m-%d")
-                    registered_providers[p] = {
-                        "name":       d.get("name", ""),
-                        "city":       d.get("city", "حائل"),
-                        "specialty":  d.get("service", ""),
-                        "status":     "active",
-                        "expiry":     expiry_date,
-                        "registered": datetime.now().strftime("%Y-%m-%d"),
-                    }
+                        expiry_date = (datetime.now() + timedelta(days=28)).strftime("%Y-%m-%d")
+                        registered_providers[p] = {
+                            "name":       d.get("name", ""),
+                            "city":       d.get("city", "حائل"),
+                            "specialty":  d.get("service", ""),
+                            "status":     "active",
+                            "expiry":     expiry_date,
+                            "registered": datetime.now().strftime("%Y-%m-%d"),
+                        }
+                        pending_approval.pop(p)
+                        user_sessions[p] = {"step": "start"}
+                        send_msg(p, t(p, "reg_approved"))
+                        log_event("اعتماد_مقدم", p, d.get("name", ""))
+                        approved_count += 1
+                        print(f"✅ اعتماد: {p}")
+                if approved_count > 0:
                     save_providers()
                     save_pending()
-                    user_sessions[p] = {"step": "start"}
-                    send_msg(p, t(p, "reg_approved"))
-                    log_event("اعتماد_مقدم", p, d.get("name", ""))
-                    print(f"✅ اعتماد: {p}")
+                    print(f"✅ تم اعتماد {approved_count} مقدم")
 
             # قروب التحكم
             elif chat_id == CONTROL_GROUP and mt in ["textMessage", "extendedTextMessage"]:
