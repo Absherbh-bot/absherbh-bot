@@ -1251,7 +1251,11 @@ def webhook():
             }
             if step in client_steps:
                 handle_customer(phone, text)
-            elif text == "1":
+            elif step == "provider_main":
+                # المقدم في قائمته الرئيسية — أرسل للقائمة أولاً
+                handle_provider_menu(phone, text, registered_providers[phone])
+            elif text == "1" and step not in client_steps:
+                # المقدم ينتظر طلب ويضغط 1 لقبوله
                 handle_provider_accept(phone)
             else:
                 check_timeout(phone)
