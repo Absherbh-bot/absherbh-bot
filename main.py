@@ -90,12 +90,11 @@ T = {
         ),
         "reg_info": "أرسل اسمك أو اسم نشاطك التجاري\nمع رقم هويتك أو سجلك التجاري\n\n0 - رجوع ↩️",
         "reg_pending": (
-            "شكراً! طلبك قيد المراجعة ✅\n"
-            "قم بتحويل رسوم الاشتراك:\n"
-            "💰 20 ريال لكل 28 يوم\n"
-            "ابتداءً من تاريخ اعتمادك من الإدارة\n"
-            f"رقم الحساب:\n{BANK_ACCOUNT}\n"
-            "أرسل إيصال التحويل وسنراجع طلبك 🙏"
+            "أهلاً بك في مذكرة سلمان 🌟\n\n"
+            "شكراً لاهتمامك بالانضمام إلى منصتنا\n"
+            "سنقوم بمراجعة بياناتك والتحقق منها\n"
+            "وفي حال كانت سليمة سيتم إشعارك\n"
+            "بتفعيل حسابك كمقدم خدمة ✅"
         ),
         "reg_approved": (
             "تم اعتمادك في منصة مذكرة سلمان 🎉\n"
@@ -168,12 +167,11 @@ T = {
         ),
         "reg_info": "Send your name or business name\nwith your ID number or commercial registration\n\n0 - Back ↩️",
         "reg_pending": (
-            "Thank you! Your request is under review ✅\n"
-            "Please transfer the subscription fee:\n"
-            "💰 20 SAR every 28 days\n"
-            "Starting from your approval date\n"
-            f"Account number:\n{BANK_ACCOUNT}\n"
-            "Send the transfer receipt and we will review your request 🙏"
+            "Welcome to Mudhakkira Salman 🌟\n\n"
+            "Thank you for your interest in joining our platform\n"
+            "We will review your information and verify it\n"
+            "If everything checks out, you will be notified\n"
+            "when your account is activated as a service provider ✅"
         ),
         "reg_approved": (
             "You have been approved on Mudhakkira Salman 🎉\n"
@@ -241,12 +239,11 @@ T = {
         ),
         "reg_info": "اپنا نام یا کاروباری نام بھیجیں\nشناختی کارڈ یا تجارتی رجسٹریشن نمبر کے ساتھ\n\n0 - واپس ↩️",
         "reg_pending": (
-            "شکریہ! آپ کی درخواست زیر غور ہے ✅\n"
-            "براہ کرم سبسکرپشن فیس منتقل کریں:\n"
-            "💰 20 ریال ہر 28 دن\n"
-            "آپ کی منظوری کی تاریخ سے\n"
-            f"اکاؤنٹ نمبر:\n{BANK_ACCOUNT}\n"
-            "ٹرانسفر کی رسید بھیجیں 🙏"
+            "مذکرہ سلمان میں خوش آمدید 🌟\n\n"
+            "ہمارے پلیٹ فارم میں شامل ہونے میں دلچسپی کا شکریہ\n"
+            "ہم آپ کی معلومات کا جائزہ لیں گے اور تصدیق کریں گے\n"
+            "اگر سب کچھ درست ہوا تو آپ کو اطلاع دی جائے گی\n"
+            "جب آپ کا اکاؤنٹ سروس فراہم کنندہ کے طور پر فعال ہو جائے گا ✅"
         ),
         "reg_approved": (
             "مذکرہ سلمان پر آپ کی منظوری ہو گئی 🎉\n"
@@ -304,6 +301,7 @@ user_sessions     = {}
 control_sessions  = {}
 user_language     = {}
 pending_approval  = {}
+provider_last_order = {}  # آخر طلب أُرسل لكل مقدم {phone: oid}
 registered_clients   = set()
 registered_providers = {}
 pending_orders    = {}
@@ -529,8 +527,12 @@ def broadcast_order(oid):
             f"المدينة: {od['city']}\n"
             f"الخدمة: {od['service']}\n"
             f"{desc}"
-            f"لاستلام الطلب أرسل: 1"
+            f"━━━━━━━━━━━━━━\n"
+            f"📌 لاستلام هذا الطلب:\n"
+            f"اضغط مطولاً على هذه الرسالة\n"
+            f"ثم اختر (رد) واكتب: 1"
         )
+        provider_last_order[p] = oid
         time.sleep(0.3)
     def check_5min(cp=cp, oid=oid):
         time.sleep(5 * 60)
@@ -540,8 +542,36 @@ def broadcast_order(oid):
         send_msg(cp, t(cp, "no_provider"))
     threading.Thread(target=check_5min).start()
 
-def handle_provider_accept(phone):
-    for oid, od in list(pending_orders.items()):
+def extract_oid_from_quoted(md):
+    """استخراج رقم الطلب من نص الرسالة المردود عليها"""
+    try:
+        quoted = md.get("extendedTextMessageData", {}).get("contextInfo", {}).get("quotedMessage", {})
+        quoted_text = quoted.get("conversation", "") or quoted.get("extendedTextMessage", {}).get("text", "")
+        if not quoted_text:
+            return None
+        for word in quoted_text.split():
+            if word.startswith("MS-"):
+                return word.strip()
+    except:
+        pass
+    return None
+
+def handle_provider_accept(phone, quoted_oid=None):
+    # أولوية: الطلب المستخرج من الرد → آخر طلب أُرسل → أي طلب متاح
+    candidates = []
+    if quoted_oid and quoted_oid in pending_orders:
+        candidates.append(quoted_oid)
+    last = provider_last_order.get(phone)
+    if last and last in pending_orders and last not in candidates:
+        candidates.append(last)
+    for oid in pending_orders:
+        if oid not in candidates:
+            candidates.append(oid)
+
+    for oid in candidates:
+        od = pending_orders.get(oid)
+        if not od:
+            continue
         if od.get("taken"):
             continue
         if phone not in od.get("providers", []):
@@ -552,6 +582,7 @@ def handle_provider_accept(phone):
         name = registered_providers.get(phone, {}).get("name", "مقدم الخدمة")
         od["taken"] = True
         od["blocked"].append(phone)
+        provider_last_order.pop(phone, None)
         log_event("قبول_طلب", phone, f"عميل: {cp}", oid)
         send_msg(cp, t(cp, "order_accepted",
             oid=oid, city=od["city"], service=od["service"], name=name, phone=phone))
@@ -1264,8 +1295,9 @@ def webhook():
             if step in client_steps:
                 handle_customer(phone, text)
             elif text == "1" and step not in provider_menu_steps:
-                # المقدم يقبل طلب وصله
-                handle_provider_accept(phone)
+                # استخراج رقم الطلب من الرد إن وُجد
+                quoted_oid = extract_oid_from_quoted(md)
+                handle_provider_accept(phone, quoted_oid=quoted_oid)
             else:
                 if step not in provider_menu_steps:
                     user_sessions[phone] = {"step": "provider_main"}
