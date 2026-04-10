@@ -75,6 +75,19 @@ T = {
             "0 - رجوع ↩️"
         ),
         "choose_language": "اختر لغتك:\n1 - العربية 🇸🇦\n2 - English 🇬🇧\n3 - اردو 🇵🇰",
+        "reg_terms": (
+            "أهلاً بك في مذكرة سلمان 🌟\n\n"
+            "قبل التسجيل يرجى الموافقة على الشروط:\n\n"
+            "1️⃣ المنصة وسيط إلكتروني فقط\n"
+            "أنت مسؤول عن جودة خدمتك\n\n"
+            "2️⃣ بيانات العملاء سرية تماماً\n"
+            "يُحظر مشاركتها مع أي طرف\n\n"
+            "3️⃣ عدم الاستجابة للعميل\n"
+            "يُسجَّل كشكوى تلقائياً\n\n"
+            "1 - أوافق وأريد التسجيل ✅\n"
+            "2 - لا أوافق ❌\n"
+            "0 - رجوع ↩️"
+        ),
         "reg_city": "اختر مدينتك للتسجيل:\n1 - حائل 📍\n(مدن أخرى قريباً 🔜)\n\n0 - رجوع ↩️",
         "reg_service": (
             "اختر تخصصك:\n\n"
@@ -152,6 +165,19 @@ T = {
             "0 - Back ↩️"
         ),
         "choose_language": "Choose your language:\n1 - العربية 🇸🇦\n2 - English 🇬🇧\n3 - اردو 🇵🇰",
+        "reg_terms": (
+            "Welcome to Mudhakkira Salman 🌟\n\n"
+            "Before registering, please agree to the terms:\n\n"
+            "1️⃣ The platform is an intermediary only\n"
+            "You are responsible for your service quality\n\n"
+            "2️⃣ Client data is strictly confidential\n"
+            "Sharing it with any party is prohibited\n\n"
+            "3️⃣ Not responding to clients\n"
+            "is automatically recorded as a complaint\n\n"
+            "1 - I agree and want to register ✅\n"
+            "2 - I disagree ❌\n"
+            "0 - Back ↩️"
+        ),
         "reg_city": "Choose your city to register:\n1 - Hail 📍\n(More cities coming soon 🔜)\n\n0 - Back ↩️",
         "reg_service": (
             "Choose your specialty:\n\n"
@@ -224,6 +250,18 @@ T = {
             "0 - واپس ↩️"
         ),
         "choose_language": "اپنی زبان چنیں:\n1 - العربية 🇸🇦\n2 - English 🇬🇧\n3 - اردو 🇵🇰",
+        "reg_terms": (
+            "مذکرہ سلمان میں خوش آمدید 🌟\n\n"
+            "رجسٹریشن سے پہلے شرائط سے اتفاق کریں:\n\n"
+            "1️⃣ پلیٹ فارم صرف وسیط ہے\n"
+            "آپ اپنی سروس کے ذمہ دار ہیں\n\n"
+            "2️⃣ کلائنٹ کا ڈیٹا سختی سے خفیہ ہے\n\n"
+            "3️⃣ کلائنٹ کو جواب نہ دینا\n"
+            "خود بخود شکایت درج ہوتی ہے\n\n"
+            "1 - متفق ہوں اور رجسٹر کرنا چاہتا ہوں ✅\n"
+            "2 - متفق نہیں ❌\n"
+            "0 - واپس ↩️"
+        ),
         "reg_city": "رجسٹریشن کے لیے شہر چنیں:\n1 - حائل 📍\n(مزید شہر جلد 🔜)\n\n0 - واپس ↩️",
         "reg_service": (
             "اپنی خصوصیت چنیں:\n\n"
@@ -823,8 +861,8 @@ def handle_customer(phone, msg):
             send_msg(phone, t(phone, "welcome"))
             return
         if msg == "1":
-            user_sessions[phone] = {"step": "reg_city"}
-            send_msg(phone, t(phone, "reg_city"))
+            user_sessions[phone] = {"step": "reg_terms"}
+            send_msg(phone, t(phone, "reg_terms"))
         elif msg == "2":
             user_sessions[phone] = {"step": "complaint"}
             send_msg(phone, t(phone, "complaint_prompt"))
@@ -834,6 +872,21 @@ def handle_customer(phone, msg):
             user_sessions[phone] = {"step": "start"}
         else:
             send_msg(phone, t(phone, "admin_menu"))
+
+    # ── تسجيل مقدم — الشروط ──
+    elif step == "reg_terms":
+        if msg == "0":
+            user_sessions[phone] = {"step": "admin_menu"}
+            send_msg(phone, t(phone, "admin_menu"))
+            return
+        if msg == "1":
+            user_sessions[phone] = {"step": "reg_city"}
+            send_msg(phone, t(phone, "reg_city"))
+        elif msg == "2":
+            send_msg(phone, "شكراً لاهتمامك")
+            user_sessions[phone] = {"step": "start"}
+        else:
+            send_msg(phone, t(phone, "reg_terms"))
 
     # ── تسجيل مقدم — المدينة ──
     elif step == "reg_city":
@@ -1311,7 +1364,7 @@ def webhook():
                 "city", "service", "description", "terms", "waiting",
                 "waiting_choice", "provider_sent", "reason", "price",
                 "custom_reason", "complaint", "choose_language",
-                "admin_menu", "reg_city", "reg_service", "reg_info", "reg_pending",
+                "admin_menu", "reg_terms", "reg_city", "reg_service", "reg_info", "reg_pending",
             }
             provider_menu_steps = {"provider_main", "provider_account", "provider_contact"}
             if step in client_steps:
