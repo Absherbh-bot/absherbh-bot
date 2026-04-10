@@ -545,15 +545,24 @@ def broadcast_order(oid):
 def extract_oid_from_quoted(md):
     """استخراج رقم الطلب من نص الرسالة المردود عليها"""
     try:
-        quoted = md.get("extendedTextMessageData", {}).get("contextInfo", {}).get("quotedMessage", {})
-        quoted_text = quoted.get("conversation", "") or quoted.get("extendedTextMessage", {}).get("text", "")
+        ext = md.get("extendedTextMessageData", {})
+        # Green API يضع السياق في stanzaId أو quotedMessage
+        ctx = ext.get("contextInfo", {}) or ext.get("quotedMessageData", {})
+        quoted_text = (
+            ctx.get("quotedMessage", {}).get("conversation", "")
+            or ctx.get("quotedMessage", {}).get("extendedTextMessage", {}).get("text", "")
+            or ctx.get("quotedBody", "")
+            or ext.get("description", "")
+        )
+        print(f"🔍 quoted_text: {quoted_text[:100] if quoted_text else 'فارغ'}")
         if not quoted_text:
             return None
-        for word in quoted_text.split():
-            if word.startswith("MS-"):
-                return word.strip()
-    except:
-        pass
+        import re
+        match = re.search(r"MS-\\d+", quoted_text)
+        if match:
+            return match.group(0)
+    except Exception as e:
+        print(f"extract error: {e}")
     return None
 
 def handle_provider_accept(phone, quoted_oid=None):
@@ -1294,8 +1303,8 @@ def webhook():
             provider_menu_steps = {"provider_main", "provider_account", "provider_contact"}
             if step in client_steps:
                 handle_customer(phone, text)
-            elif text == "1" and step not in provider_menu_steps:
-                # استخراج رقم الطلب من الرد إن وُجد
+            elif text == "1":
+                # أي "1" من المقدم = قبول طلب (حتى لو في القائمة الرئيسية)
                 quoted_oid = extract_oid_from_quoted(md)
                 handle_provider_accept(phone, quoted_oid=quoted_oid)
             else:
