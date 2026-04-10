@@ -1294,6 +1294,7 @@ def webhook():
         if phone in registered_providers:
             session = user_sessions.get(phone, {"step": "provider_main"})
             step    = session.get("step", "provider_main")
+            print(f"🔧 مقدم [{phone}] step=[{step}] text=[{text}]")
             client_steps = {
                 "city", "service", "description", "terms", "waiting",
                 "waiting_choice", "provider_sent", "reason", "price",
