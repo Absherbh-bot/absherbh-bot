@@ -138,7 +138,7 @@ T = {
         "chosen": "اخترت: {service}\n\n",
         "no_provider": "لم نجد لك مقدم خدمة حتى الآن 😔\n\n1 - انتظار ⏳\n2 - إلغاء الطلب ❌",
         "order_received": "تم استلام طلبك ✅\nرقم الطلب: {oid}\n\nسيتم التواصل معك خلال 5 دقائق",
-        "order_accepted": "ابشر به 🎉\n\nتم قبول طلبك رقم {oid}\nالمدينة: {city}\nالخدمة: {service}\n\nمقدم الخدمة: {name}\nللتواصل: {phone}",
+        "order_accepted": "ابشر به 🎉\n\nتم قبول طلبك رقم {oid}\nالمدينة: {city}\nالخدمة: {service}\n\nمقدم الخدمة: {name}\nللتواصل: {provider_phone}",
         "rating": "كيف كانت تجربتك مع مقدم الخدمة؟\n\n1 - ممتاز تم الاتفاق ✅\n2 - لم يتم الاتفاق\n3 - تواصل مع الإدارة",
         "reason": "ما سبب عدم الاتفاق؟\n\n1 - السعر مرتفع\n2 - لم يتجاوب\n3 - سبب آخر\n0 - رجوع ↩️",
     },
@@ -223,7 +223,7 @@ T = {
         "chosen": "You chose: {service}\n\n",
         "no_provider": "No service provider found yet 😔\n\n1 - Wait ⏳\n2 - Cancel request ❌",
         "order_received": "Your request has been received ✅\nOrder number: {oid}\n\nWe will contact you within 5 minutes",
-        "order_accepted": "Great news 🎉\n\nYour order {oid} has been accepted\nCity: {city}\nService: {service}\n\nProvider: {name}\nContact: {phone}",
+        "order_accepted": "Great news 🎉\n\nYour order {oid} has been accepted\nCity: {city}\nService: {service}\n\nProvider: {name}\nContact: {provider_phone}",
         "rating": "How was your experience?\n\n1 - Excellent, deal done ✅\n2 - No deal\n3 - Contact support",
         "reason": "Why no deal?\n\n1 - Price too high\n2 - No response\n3 - Other\n0 - Back ↩️",
     },
@@ -307,7 +307,7 @@ T = {
         "chosen": "آپ نے چنا: {service}\n\n",
         "no_provider": "ابھی تک کوئی سروس فراہم کنندہ نہیں ملا 😔\n\n1 - انتظار ⏳\n2 - درخواست منسوخ ❌",
         "order_received": "آپ کی درخواست موصول ہو گئی ✅\nآرڈر نمبر: {oid}\n\n5 منٹ میں رابطہ کیا جائے گا",
-        "order_accepted": "خوشخبری 🎉\n\nآپ کا آرڈر {oid} قبول ہو گیا\nشہر: {city}\nسروس: {service}\n\nفراہم کنندہ: {name}\nرابطہ: {phone}",
+        "order_accepted": "خوشخبری 🎉\n\nآپ کا آرڈر {oid} قبول ہو گیا\nشہر: {city}\nسروس: {service}\n\nفراہم کنندہ: {name}\nرابطہ: {provider_phone}",
         "rating": "سروس فراہم کنندہ کے ساتھ تجربہ کیسا رہا؟\n\n1 - بہترین ✅\n2 - معاہدہ نہیں ہوا\n3 - انتظامیہ سے رابطہ",
         "reason": "معاہدہ کیوں نہیں ہوا؟\n\n1 - قیمت زیادہ\n2 - جواب نہیں دیا\n3 - اور وجہ\n0 - واپس ↩️",
     },
@@ -637,7 +637,7 @@ def handle_provider_accept(phone, quoted_oid=None):
         provider_last_order.pop(phone, None)
         log_event("قبول_طلب", phone, f"عميل: {cp}", oid)
         send_msg(cp, t(cp, "order_accepted",
-            oid=oid, city=od["city"], service=od["service"], name=name, phone=phone))
+            oid=oid, city=od["city"], service=od["service"], name=name, provider_phone=phone))
         send_msg(phone, f"تم تأكيد استلامك للطلب {oid} ✅\nسيتواصل معك العميل قريباً")
         def send_rating(cp=cp):
             time.sleep(60)
