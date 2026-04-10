@@ -29,7 +29,7 @@ EXPORT_SECRET     = os.environ.get("EXPORT_SECRET", "ms-export-2026")
 ADMIN_GROUP       = "120363406973437339@g.us"
 CONTROL_GROUP     = "120363425363360676@g.us"
 SUBSCRIBERS_GROUP = "120363406971255280@g.us"
-ADMIN_PHONES      = {"966531157747"}
+ADMIN_PHONES      = {"966531157747"}  # مسؤول التحكم
 
 # ==========================================
 # الخدمات
@@ -624,6 +624,7 @@ def resend_order(phone, oid, reason, price=None):
 # معالج العميل
 # ==========================================
 def handle_customer(phone, msg):
+    text = msg  # alias للاستخدام في قبول الطلب
     blocked, remaining = is_blocked(phone)
     if blocked:
         send_msg(phone, f"حسابك موقوف مؤقتاً\nالمتبقي: {remaining} دقيقة ⏱️")
@@ -635,6 +636,16 @@ def handle_customer(phone, msg):
     step    = session.get("step", "start")
 
     # ── البداية ──
+    # لو مقدم مسجّل وأرسل "1" — قبول طلب مباشرة
+    if msg == "1" and phone in registered_providers and step not in {
+        "city", "service", "description", "terms", "waiting_choice",
+        "provider_sent", "reason", "price", "custom_reason",
+        "complaint", "choose_language", "admin_menu",
+        "reg_city", "reg_service", "reg_info", "reg_pending",
+    }:
+        handle_provider_accept(phone)
+        return
+
     if step == "start":
         log_event("رسالة_جديدة", phone, "بدأ المحادثة")
         send_msg(phone, t(phone, "welcome"))
@@ -1278,23 +1289,17 @@ def webhook():
         phone = sender.replace("@c.us", "")
         print(f"📩 [{phone}] {text}")
 
-        # ── أدمن مصرح ──
-        if phone in ADMIN_PHONES:
-            ctrl = control_sessions.get(phone, {"step": "start"})
-            if text == "تحكم" or ctrl.get("step") not in ["start", ""]:
-                handle_control(phone, text)
-                return jsonify({"status": "ok"}), 200
-
         # ── فلتر سعودي ──
         if not phone.startswith("966"):
             send_msg(phone, "عذراً\nهذه الخدمة متاحة للأرقام السعودية فقط 🇸🇦")
             return jsonify({"status": "ok"}), 200
 
-        # ── مقدم خدمة مسجّل ──
+        # ── مقدم خدمة مسجّل — يُعالج قبل الأدمن ──
         if phone in registered_providers:
             session = user_sessions.get(phone, {"step": "provider_main"})
             step    = session.get("step", "provider_main")
-            print(f"🔧 مقدم [{phone}] step=[{step}] text=[{text}]")
+            print(f"🔧 [{phone}] step=[{step}] text=[{text}]")
+            print(f"🔧 pending={list(pending_orders.keys())} last={provider_last_order.get(phone)}")
             client_steps = {
                 "city", "service", "description", "terms", "waiting",
                 "waiting_choice", "provider_sent", "reason", "price",
@@ -1313,6 +1318,13 @@ def webhook():
                     user_sessions[phone] = {"step": "provider_main"}
                 handle_provider_menu(phone, text, registered_providers[phone])
             return jsonify({"status": "ok"}), 200
+
+        # ── أدمن مصرح (غير مسجل كمقدم) ──
+        if phone in ADMIN_PHONES:
+            ctrl = control_sessions.get(phone, {"step": "start"})
+            if text == "تحكم" or ctrl.get("step") not in ["start", ""]:
+                handle_control(phone, text)
+                return jsonify({"status": "ok"}), 200
 
         # ── عميل عادي ──
         handle_customer(phone, text)
