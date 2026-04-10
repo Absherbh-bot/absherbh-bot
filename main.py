@@ -1287,7 +1287,9 @@ def webhook():
 
         text  = normalize(text)
         phone = sender.replace("@c.us", "")
-        print(f"📩 [{phone}] {text}")
+        in_providers = phone in registered_providers
+        in_admin     = phone in ADMIN_PHONES
+        print(f"📩 [{phone}] txt=[{text}] provider={in_providers} admin={in_admin} step={user_sessions.get(phone,{}).get('step','?')}")
 
         # ── فلتر سعودي ──
         if not phone.startswith("966"):
@@ -1449,6 +1451,17 @@ def broadcast_api():
         "eta_minutes": int(len(targets) * delay / 60),
     }), 200
 
+
+@app.route("/status", methods=["GET"])
+def status():
+    if request.args.get("key") != EXPORT_SECRET:
+        return "غير مصرح", 403
+    return jsonify({
+        "providers": list(registered_providers.keys()),
+        "pending_orders": {k: {"phone": v["phone"], "taken": v["taken"], "providers": v["providers"]} for k, v in pending_orders.items()},
+        "provider_last_order": provider_last_order,
+        "instance": INSTANCE_ID,
+    }), 200
 
 @app.route("/", methods=["GET"])
 def home():
