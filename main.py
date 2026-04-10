@@ -345,6 +345,10 @@ def load_data():
                 if not od.get("taken") and od.get("providers"):
                     od["taken"] = False
                     pending_orders[oid] = od
+                    # استعادة provider_last_order
+                    for p in od.get("providers", []):
+                        if p not in od.get("blocked", []):
+                            provider_last_order[p] = oid
                     threading.Timer(2, broadcast_order, args=[oid]).start()
             print(f"✅ طلبات معلقة: {len(pending_orders)}")
     except Exception as e:
@@ -558,7 +562,7 @@ def extract_oid_from_quoted(md):
         if not quoted_text:
             return None
         import re
-        match = re.search(r"MS-\\d+", quoted_text)
+        match = re.search("MS-[0-9]+", quoted_text)
         if match:
             return match.group(0)
     except Exception as e:
@@ -566,6 +570,7 @@ def extract_oid_from_quoted(md):
     return None
 
 def handle_provider_accept(phone, quoted_oid=None):
+    print(f"🎯 accept: phone={phone} quoted={quoted_oid} last={provider_last_order.get(phone)} orders={list(pending_orders.keys())}")
     # أولوية: الطلب المستخرج من الرد → آخر طلب أُرسل → أي طلب متاح
     candidates = []
     if quoted_oid and quoted_oid in pending_orders:
